@@ -505,12 +505,12 @@ export default function InvoiceEdit() {
       ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុក...</p>
       : items.length === 0
         ? <div className="text-center py-12"><p className="text-5xl mb-3">📦</p><p className="text-sm text-gray-400">គ្មានផលិតផល</p></div>
-        : <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {items.map(p => {
               const cartQtyForProduct = cart.reduce((s, c) => s + (!c.isCustom && c.productId === p._id ? c.qty : 0), 0)
               return (
                 <button key={p._id} onClick={() => selectProduct(p)}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 h-full min-h-[76px] ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
                   {cartQtyForProduct > 0 && (
                     <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow">
                       {cartQtyForProduct}
@@ -518,7 +518,7 @@ export default function InvoiceEdit() {
                   )}
                   <span className="text-2xl shrink-0">📦</span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                    <p className="text-sm font-semibold text-gray-800 line-clamp-2">{p.name}</p>
                     <p className="text-xs text-gray-400 truncate">{p.categoryId?.name ?? ''}</p>
                   </div>
                 </button>
@@ -554,7 +554,7 @@ export default function InvoiceEdit() {
           </div>
         )}
         <button onClick={() => addVariantToCart(v)} disabled={v.stock <= 0}
-          className={`w-full text-left p-4 rounded-xl border-2 bg-white transition-all ${
+          className={`w-full h-full min-h-[150px] flex flex-col text-left p-4 rounded-xl border-2 bg-white transition-all ${
             inCart ? 'border-indigo-400 ring-2 ring-indigo-100' : v.stock>0?'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 active:scale-95':'border-gray-100 opacity-40 cursor-not-allowed'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-mono text-gray-400">{v.sku}</span>
@@ -565,8 +565,8 @@ export default function InvoiceEdit() {
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${v.stock<=0?'bg-red-100 text-red-500':v.stock<=10?'bg-yellow-100 text-yellow-700':'bg-green-100 text-green-600'}`}>{v.stock} នៅ</span>
             </div>
           </div>
-          <p className="text-sm font-bold text-gray-800">{v.unitValue} {v.unit}{v.brand?` · ${v.brand}`:''}</p>
-          <div className="mt-2 space-y-1">
+          <p className="text-sm font-bold text-gray-800 line-clamp-2">{v.unitValue} {v.unit}{v.brand?` · ${v.brand}`:''}</p>
+          <div className="mt-2 space-y-1 mt-auto pt-2">
             {tiers.map((t,i) => (
               <div key={i} className="flex justify-between items-center">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TIER_COLORS[t.type]??'bg-gray-100 text-gray-500'}`}>{t.label}</span>
@@ -589,10 +589,10 @@ export default function InvoiceEdit() {
         </div>
       </div>
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
 
         {/* LEFT */}
-        <div className="flex-1 space-y-4 min-w-0">
+        <div className="flex-1 space-y-4 min-w-0 w-full">
 
           {/* CURRENCY COMBO BOX */}
           <div className="card p-5 space-y-3">
@@ -654,7 +654,7 @@ export default function InvoiceEdit() {
                     ? <p className="text-center text-gray-400 py-8">កំពុងទាញ...</p>
                     : variants.length === 0
                       ? <div className="text-center py-8 space-y-2"><p className="text-4xl">📭</p><p className="text-sm text-gray-500">ផលិតផលនេះគ្មាន Variant</p></div>
-                      : <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{variants.map(v => VariantCard(v))}</div>
+                      : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{variants.map(v => VariantCard(v))}</div>
                   }
                 </div>
               )}
@@ -686,13 +686,13 @@ export default function InvoiceEdit() {
                     ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុកប្រភេទ...</p>
                     : categories.length === 0
                       ? <div className="text-center py-12"><p className="text-5xl mb-3">🗂️</p><p className="text-sm text-gray-400">គ្មានប្រភេទ</p></div>
-                      : <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                           {categories.map(cat => (
                             <button key={cat._id} onClick={() => openCategory(cat)}
-                              className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 text-left transition-all active:scale-95 group">
+                              className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 text-left transition-all active:scale-95 group h-full min-h-[76px]">
                               <span className="text-2xl shrink-0">🗂️</span>
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 truncate">{cat.name}</p>
+                                <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 line-clamp-2">{cat.name}</p>
                                 {cat.productCount != null && <p className="text-xs text-gray-400">{cat.productCount} ផលិតផល</p>}
                               </div>
                             </button>
@@ -761,21 +761,22 @@ export default function InvoiceEdit() {
         </div>
 
         {/* RIGHT: Cart */}
-        <div className="w-[440px] shrink-0">
-          <div className="card sticky top-4">
+        <div className="w-full lg:w-[440px] lg:shrink-0">
+          <div className="card lg:sticky lg:top-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-800">🛒 ទំនិញ ({cart.length})</h3>
             </div>
 
-            <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-y-auto p-3 space-y-3">
               {cart.length===0 ? (
                 <div className="py-12 text-center text-gray-400"><p className="text-4xl mb-2">🛒</p><p className="text-sm">គ្មានទំនិញ</p></div>
               ) : cart.map((item,idx)=>{
                 const vCurrency = item.variantCurrency || 'KHR'
                 const shownSubtotal = displayCurrency === 'BOTH' ? item.subtotal : toDisplay(item.subtotal, vCurrency, displayCurrency)
                 const shownCurrencyLabel = displayCurrency === 'BOTH' ? vCurrency : displayCurrency
+                const stripeCls = idx % 2 === 0 ? 'border-indigo-200 bg-indigo-50/30' : 'border-teal-200 bg-teal-50/30'
                 return (
-                <div key={idx} className="p-4 space-y-3">
+                <div key={idx} className={`p-4 space-y-3 rounded-2xl border-2 ${stripeCls}`}>
                   <div className="flex items-start justify-between gap-2">
                     <input
                       value={item.productName}
@@ -811,13 +812,13 @@ export default function InvoiceEdit() {
                   {/* Variant switch combo box — lazily loads options for
                       items that came straight from the original invoice */}
                   {!item.isCustom && item.productId && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-400 shrink-0">🔀 ប្តូរប្រភេទ:</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                      <span className="text-xs font-medium text-gray-500 shrink-0">🔀 ប្តូរប្រភេទ:</span>
                       {item.variantOptions?.length > 0 ? (
                         <select
                           value={item.variantId}
                           onChange={e => switchVariant(idx, e.target.value)}
-                          className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-indigo-400"
+                          className="flex-1 min-w-0 text-sm sm:text-base font-medium border-2 border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-indigo-400"
                         >
                           {item.variantOptions.map(v => {
                             const vPrice = getTiers(v)[0]?.price ?? v.price ?? 0
@@ -830,7 +831,7 @@ export default function InvoiceEdit() {
                         </select>
                       ) : (
                         <button onClick={() => ensureVariantOptions(idx)}
-                          className="flex-1 text-xs text-indigo-500 border border-indigo-200 rounded-lg px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-left">
+                          className="flex-1 text-sm font-medium text-indigo-500 border-2 border-indigo-200 rounded-xl px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-left">
                           ↻ ទាញយកប្រភេទផ្សេងទៀត
                         </button>
                       )}

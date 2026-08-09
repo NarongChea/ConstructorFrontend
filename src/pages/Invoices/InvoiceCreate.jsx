@@ -517,12 +517,12 @@ export default function InvoiceCreate() {
       ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុក...</p>
       : items.length === 0
         ? <div className="text-center py-12"><p className="text-5xl mb-3">📦</p><p className="text-sm text-gray-400">គ្មានផលិតផល</p></div>
-        : <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {items.map(p => {
               const cartQtyForProduct = cart.reduce((s, c) => s + (!c.isCustom && c.productId === p._id ? c.qty : 0), 0)
               return (
                 <button key={p._id} onClick={() => selectProduct(p)}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 h-full min-h-[76px] ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
                   {cartQtyForProduct > 0 && (
                     <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow">
                       {cartQtyForProduct}
@@ -530,7 +530,7 @@ export default function InvoiceCreate() {
                   )}
                   <span className="text-2xl shrink-0">📦</span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                    <p className="text-sm font-semibold text-gray-800 line-clamp-2">{p.name}</p>
                     <p className="text-xs text-gray-400 truncate">{p.categoryId?.name ?? ''}</p>
                   </div>
                 </button>
@@ -625,10 +625,10 @@ export default function InvoiceCreate() {
   }
 
   return (
-    <div className="flex gap-6 items-start">
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
 
       {/* ════ LEFT ════ */}
-      <div className="flex-1 space-y-4 min-w-0">
+      <div className="flex-1 space-y-4 min-w-0 w-full">
 
         {/* Invoice header card */}
         <div className="card p-5 space-y-4">
@@ -853,8 +853,8 @@ export default function InvoiceCreate() {
       </div>
 
       {/* ════ RIGHT: CART ════ */}
-      <div className="w-[440px] shrink-0">
-        <div className="card sticky top-4">
+      <div className="w-full lg:w-[440px] lg:shrink-0">
+        <div className="card lg:sticky lg:top-4">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
             <h3 className="font-bold text-gray-800 text-base">
               🛒 ទំនិញ ({cart.length})
