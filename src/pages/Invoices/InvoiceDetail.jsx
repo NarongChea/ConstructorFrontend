@@ -29,7 +29,7 @@ const LB = '#dde4f6'
 //    and shop — repeats this pagination). Row numbering (No column) keeps
 //    counting across pages via `startIndex`; totals/footer only render on the
 //    LAST page of each copy so the total isn't printed multiple times. ──
-const ROWS_PER_PAGE = 16
+const ROWS_PER_PAGE = 15
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
@@ -161,7 +161,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       {/* Customer row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `2.5px solid ${B}`, paddingBottom: '2.5mm', fontSize: '14px', flexWrap: 'wrap', gap: '2mm' }}>
         <div style={{ flex: 1 }}>
-          <span style={{ fontWeight: '700' }}>អតិថិជន:&nbsp;</span>
+          <span style={{ fontWeight: '900' ,marginBottom :'30px'}}>អតិថិជន:&nbsp;</span>
           <span style={{ display: 'inline-block', minWidth: '80mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
           {phone && <span style={{ marginLeft: '4mm' }}>📞&nbsp;{phone}</span>}
         </div>
