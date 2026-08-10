@@ -15,6 +15,21 @@ const PAGE_SIZE = 20
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
 
+// ── Cash-rounding helper for KHR totals ──
+// Looks at the hundreds digit (3rd digit from the right):
+//   0       → round down to the even thousand (e.g. 47,050 → 47,000)
+//   1 - 5   → round to the X,500 mark          (e.g. 47,250 → 47,500)
+//   6 - 9   → round UP to the next thousand    (e.g. 47,650 → 48,000)
+const roundToNearest500 = (n) => {
+  const value = Math.round(n || 0)
+  const base = Math.floor(value / 1000) * 1000
+  const remainder = value - base
+  const hundredsDigit = Math.floor(remainder / 100)
+  if (hundredsDigit === 0) return base
+  if (hundredsDigit <= 5) return base + 500
+  return base + 1000
+}
+
 export default function InvoiceCreate() {
   const navigate = useNavigate()
 
@@ -30,23 +45,20 @@ export default function InvoiceCreate() {
   const [deposit,       setDeposit]       = useState('')
 
   // ── Payment mode — 3 explicit states ──
-  // 'paid'    → Already paid in full. No deposit input. Print hides នៅខ្វះ row.
-  // 'deposit' → Partial payment. Show deposit input + currency picker. Print shows deposit + នៅខ្វះ.
-  // 'pending' → Not paid yet. No deposit input. Print shows full total in នៅខ្វះ, no deposit row.
   const [paymentMode,    setPaymentMode]    = useState('paid')
   const [depositCurrency, setDepositCurrency] = useState('KHR')
 
   // ── Display currency combo box: 'KHR' | 'USD' | 'BOTH' ──
-  // KHR  → convert every USD item into KHR (using usdToKhr rate) and sum everything as one KHR total
-  // USD  → convert every KHR item into USD (using khrToUsd rate) and sum everything as one USD total
-  // BOTH → NO conversion at all. Group items by their own native currency and
-  //        show two separate totals: "KHR items summed" and "USD items summed".
   const [displayCurrency, setDisplayCurrency] = useState('KHR')
 
   // ── Two independent exchange rates, loaded from Settings ──
-  const [usdToKhr,    setUsdToKhr]    = useState(4100) // used to convert USD → KHR
-  const [khrToUsd,    setKhrToUsd]    = useState(4100) // used to convert KHR → USD
+  const [usdToKhr,    setUsdToKhr]    = useState(4100)
+  const [khrToUsd,    setKhrToUsd]    = useState(4100)
   const [loadingRate, setLoadingRate] = useState(true)
+
+  // ── Real total vs cash-rounded total — user picks which one is "the" total.
+  //    Rounded is the default since that's what actually gets handed over/received in cash. ──
+  const [useRoundedTotal, setUseRoundedTotal] = useState(true)
 
   const [search,        setSearch]        = useState('')
   const [browseMode,    setBrowseMode]    = useState('categories')
@@ -63,8 +75,6 @@ export default function InvoiceCreate() {
   const [variants,      setVariants]      = useState([])
   const [loadingVars,   setLoadingVars]   = useState(false)
 
-  // cart items carry their OWN currency (variantCurrency) — unitPrice is
-  // always stored in that native currency.
   const [cart,          setCart]          = useState([])
   const [submitting,    setSubmitting]    = useState(false)
   const [customName,    setCustomName]    = useState('')
@@ -74,22 +84,10 @@ export default function InvoiceCreate() {
 
   const dSearch = useDebounce(search, 400)
 
-  // ══════════════════════════════════════════════════════════════════════
-  // IN-SESSION CACHES — avoid re-hitting the API every time the user
-  // re-opens a category or re-selects a product they've already browsed.
-  // Cleared automatically when the component unmounts (ref, not global
-  // state), so stock/prices are always fresh the next time this screen
-  // is opened from scratch — only repeat navigation WITHIN this visit
-  // is served from cache.
-  //   - catProductsCacheRef: categoryId -> { products, page, hasMore }
-  //   - variantsCacheRef:    productId  -> variants[]
-  // ══════════════════════════════════════════════════════════════════════
   const catProductsCacheRef = useRef(new Map())
   const variantsCacheRef    = useRef(new Map())
   const browseCardRef       = useRef(null)
 
-  // ── Load partners, categories, and the TWO global exchange rates from Settings ──
-  // (each of these is fetched exactly once per visit to this screen — on mount)
   useEffect(() => {
     partnerAPI.list({ limit: 100 }).then(r => setPartners(r.data?.partners ?? [])).catch(() => {})
     setLoadingCats(true)
@@ -112,14 +110,10 @@ export default function InvoiceCreate() {
       .finally(() => setLoadingRate(false))
   }, [])
 
-  // ── Search — scoped to the selected category when browsing inside one ──
   useEffect(() => {
     if (!dSearch) { setSearchResults([]); return }
     setSelectedProd(null); setVariants([])
     setLoadingSearch(true)
-    // Inside a category → scope the search to that category only, and stay
-    // in 'products' browseMode so the category breadcrumb/back button keep
-    // working. Not inside a category → global search across everything.
     const params = selectedCat
       ? { search: dSearch, category: selectedCat._id, limit: 30 }
       : { search: dSearch, limit: 30 }
@@ -135,8 +129,6 @@ export default function InvoiceCreate() {
     setSearch(''); setSearchResults([])
     setBrowseMode('products')
 
-    // Served from cache instantly if we've already browsed this category
-    // this visit — no fetch, no loading spinner.
     const cached = catProductsCacheRef.current.get(cat._id)
     if (cached) {
       setCatProducts(cached.products); setCatPage(cached.page); setCatHasMore(cached.hasMore)
@@ -170,8 +162,6 @@ export default function InvoiceCreate() {
   const selectProduct = async (p) => {
     setSelectedProd(p); setVariants([])
 
-    // Served from cache instantly if we've already opened this product
-    // this visit — no fetch, no loading spinner.
     const cached = variantsCacheRef.current.get(p._id)
     if (cached) { setVariants(cached); return }
 
@@ -210,10 +200,6 @@ export default function InvoiceCreate() {
     return tiers
   }
 
-  // ── Group variants by brand suffix (ជាង / ម្ចាស់ផ្ទះ) and sort by thickness level ──
-  // Designed for the ដែក ISI category, where every variant's brand looks like
-  // "20x20 (0.7លី) ISI ជាង" or "20x20 (0.7លី) ISI ម្ចាស់ផ្ទះ" — same size, two
-  // separate price/quality tiers that should never be visually mixed together.
   const groupVariantsByTier = (list) => {
     const groups = { worker: [], owner: [], other: [] }
     list.forEach(v => {
@@ -229,9 +215,6 @@ export default function InvoiceCreate() {
     return groups
   }
 
-  // ── Conversion helper — uses the CORRECT directional rate ──
-  // fromCurrency='USD', toCurrency='KHR' → multiply by usdToKhr
-  // fromCurrency='KHR', toCurrency='USD' → divide by khrToUsd (NOT 1/usdToKhr — different rate)
   const toDisplay = useCallback((amount, fromCurrency, toCurrency) => {
     if (!fromCurrency || fromCurrency === toCurrency) return amount
     if (fromCurrency === 'USD' && toCurrency === 'KHR') return amount * usdToKhr
@@ -239,7 +222,6 @@ export default function InvoiceCreate() {
     return amount
   }, [usdToKhr, khrToUsd])
 
-  // ── DB variant → cart (keeps the variant's NATIVE currency) ──
   const addToCart = (variant) => {
     const variantCurrency = variant.currency || 'KHR'
     const existing = cart.findIndex(c => !c.isCustom && c.variantId === variant._id)
@@ -252,17 +234,16 @@ export default function InvoiceCreate() {
     setCart(prev => [...prev, {
       isCustom: false,
       variantId:variant._id, sku:variant.sku, productName:selectedProd?.name??'',
-      productLabel:selectedProd?.name??'', // immutable — used for "jump to product" and cart badges, unaffected by renaming productName
+      productLabel:selectedProd?.name??'',
       productId:selectedProd?._id??null, variantOptions:variants,
       brand:variant.brand??'', unit:variant.unit, unitValue:variant.unitValue,
       stock:variant.stock, qty:1, unitPrice:defaultTier.price, priceType:defaultTier.type,
       subtotal:defaultTier.price, tiers,
-      variantCurrency, // native currency this item is priced in
+      variantCurrency,
     }])
     toast.success(`បន្ថែម: ${selectedProd?.name} – ${variant.unitValue}${variant.unit}`)
   }
 
-  // ── Custom item → cart (user picks its currency) ──
   const addCustomToCart = () => {
     const name  = customName.trim()
     const price = Number(customPrice)
@@ -286,9 +267,6 @@ export default function InvoiceCreate() {
   const applyTier = (idx,tier) => setCart(prev=>prev.map((c,i)=>i===idx?{...c,unitPrice:tier.price,priceType:tier.type,subtotal:c.qty*tier.price}:c))
   const setPrice  = (idx,raw)  => { const unitPrice=Math.max(0,Number(raw)||0); setCart(prev=>prev.map((c,i)=>i===idx?{...c,unitPrice,priceType:'custom',subtotal:c.qty*unitPrice}:c)) }
   const setProductName = (idx, name) => setCart(prev => prev.map((c,i) => i===idx ? { ...c, productName: name } : c))
-  // Switch a cart line to a sibling variant of the SAME product (e.g. a different
-  // size/thickness) without removing and re-adding it — keeps qty and, where possible,
-  // the same price-tier type (retail/wholesale/etc), just re-priced for the new variant.
   const switchVariant = (idx, newVariantId) => {
     setCart(prev => prev.map((c, i) => {
       if (i !== idx || c.isCustom) return c
@@ -314,9 +292,6 @@ export default function InvoiceCreate() {
   }
   const removeItem = (idx)     => setCart(prev=>prev.filter((_,i)=>i!==idx))
 
-  // Reopen the product behind a cart line in the browse panel, so a DIFFERENT
-  // variant of it can be added as a new, separate cart line (e.g. same wheel,
-  // another size) — reuses the variant list already cached on the item, no refetch.
   const goToProduct = (item) => {
     if (item.isCustom || !item.productId) return
     setSearch('')
@@ -326,12 +301,10 @@ export default function InvoiceCreate() {
     browseCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  // ── Does the cart mix currencies? ──
   const hasKHR = cart.some(c => (c.variantCurrency || 'KHR') === 'KHR')
   const hasUSD = cart.some(c => (c.variantCurrency || 'KHR') === 'USD')
   const isMixedCurrency = hasKHR && hasUSD
 
-  // ── Native (un-converted) subtotals — used by BOTH mode ──
   const subtotalKhrNative = cart
     .filter(c => (c.variantCurrency || 'KHR') === 'KHR')
     .reduce((s, c) => s + c.subtotal, 0)
@@ -339,40 +312,34 @@ export default function InvoiceCreate() {
     .filter(c => (c.variantCurrency || 'KHR') === 'USD')
     .reduce((s, c) => s + c.subtotal, 0)
 
-  // ── Converted single-currency subtotal — used by KHR mode and USD mode ──
   const subtotalInDisplay = displayCurrency === 'BOTH'
-    ? null // BOTH mode doesn't use a single merged subtotal
+    ? null
     : cart.reduce((s, c) => s + toDisplay(c.subtotal, c.variantCurrency || 'KHR', displayCurrency), 0)
 
-  // ── Discount + total — only meaningful for single-currency modes ──
   const discountAmt = displayCurrency === 'BOTH'
     ? 0
     : discountType==='percent' ? (subtotalInDisplay*(Number(discountValue)||0))/100
     : discountType==='fixed'  ? (Number(discountValue)||0) : 0
   const total = displayCurrency === 'BOTH' ? null : Math.max(0, subtotalInDisplay - discountAmt)
 
-  // ── BOTH mode: apply discount separately to each native bucket ──
   const discountKhr = discountType==='percent' ? (subtotalKhrNative*(Number(discountValue)||0))/100
                      : discountType==='fixed'  ? Math.min(Number(discountValue)||0, subtotalKhrNative) : 0
-  const discountUsd = discountType==='percent' ? (subtotalUsdNative*(Number(discountValue)||0))/100 : 0 // fixed discount only applies to KHR bucket by default
+  const discountUsd = discountType==='percent' ? (subtotalUsdNative*(Number(discountValue)||0))/100 : 0
   const totalKhrBoth = Math.max(0, subtotalKhrNative - discountKhr)
   const totalUsdBoth = Math.max(0, subtotalUsdNative - discountUsd)
 
-  // ── Cascading deposit calculation ──────────────────────────────────────────
-  // The customer can pay the deposit in EITHER currency, regardless of which
-  // mode (KHR/USD/BOTH) the invoice totals are shown in:
-  //   1. The deposit first pays down whichever bucket matches its own currency.
-  //   2. Any leftover converts into the other currency and pays down that bucket too.
-  //   3. The deposit can never exceed the grand total (capped).
-  //
-  // In KHR/USD (single-currency) mode there's only one "bucket" (the total),
-  // so step 2 simply converts the whole deposit into that one currency.
+  // ── Rounded ("update") totals — only meaningful for KHR, since the rule is
+  //    a cash-denomination rounding (nearest 500 riel). USD amounts are left
+  //    untouched. `effective*` is whichever one the toggle currently selects,
+  //    and is what deposit math / status / display actually use downstream. ──
+  const roundedTotal = displayCurrency === 'KHR' ? roundToNearest500(total || 0) : null
+  const effectiveTotal = displayCurrency === 'KHR' && useRoundedTotal ? roundedTotal : total
+
+  const roundedTotalKhrBoth = roundToNearest500(totalKhrBoth || 0)
+  const effectiveTotalKhrBoth = useRoundedTotal ? roundedTotalKhrBoth : totalKhrBoth
 
   const rawDepositInput = paymentMode === 'deposit' ? (Number(deposit) || 0) : 0
 
-  // BOTH mode: two real buckets (KHR and USD), cascading applies between them.
-  // KHR/USD mode: one bucket — but the deposit might still be paid in the OTHER
-  // currency, so we still need to convert it.
   let depositKhrApplied = 0
   let depositUsdApplied = 0
   let remainingKhrAfterDeposit = 0
@@ -380,24 +347,23 @@ export default function InvoiceCreate() {
 
   if (displayCurrency === 'BOTH') {
     if (depositCurrency === 'USD') {
-      // Cap the input so total paid never exceeds what's owed
-      const grandTotalInUSD = totalUsdBoth + (totalKhrBoth / khrToUsd)
+      const grandTotalInUSD = totalUsdBoth + (effectiveTotalKhrBoth / khrToUsd)
       const capped = Math.min(rawDepositInput, grandTotalInUSD)
       depositUsdApplied = Math.min(capped, totalUsdBoth)
       remainingUsdAfterDeposit = Math.max(0, totalUsdBoth - depositUsdApplied)
       const leftoverUSD = capped - depositUsdApplied
-      if (leftoverUSD > 0 && totalKhrBoth > 0) {
+      if (leftoverUSD > 0 && effectiveTotalKhrBoth > 0) {
         const leftoverAsKHR = leftoverUSD * usdToKhr
-        depositKhrApplied = Math.min(leftoverAsKHR, totalKhrBoth)
-        remainingKhrAfterDeposit = Math.max(0, totalKhrBoth - depositKhrApplied)
+        depositKhrApplied = Math.min(leftoverAsKHR, effectiveTotalKhrBoth)
+        remainingKhrAfterDeposit = Math.max(0, effectiveTotalKhrBoth - depositKhrApplied)
       } else {
-        remainingKhrAfterDeposit = totalKhrBoth
+        remainingKhrAfterDeposit = effectiveTotalKhrBoth
       }
     } else {
-      const grandTotalInKHR = totalKhrBoth + (totalUsdBoth * usdToKhr)
+      const grandTotalInKHR = effectiveTotalKhrBoth + (totalUsdBoth * usdToKhr)
       const capped = Math.min(rawDepositInput, grandTotalInKHR)
-      depositKhrApplied = Math.min(capped, totalKhrBoth)
-      remainingKhrAfterDeposit = Math.max(0, totalKhrBoth - depositKhrApplied)
+      depositKhrApplied = Math.min(capped, effectiveTotalKhrBoth)
+      remainingKhrAfterDeposit = Math.max(0, effectiveTotalKhrBoth - depositKhrApplied)
       const leftoverKHR = capped - depositKhrApplied
       if (leftoverKHR > 0 && totalUsdBoth > 0) {
         const leftoverAsUSD = leftoverKHR / khrToUsd
@@ -408,18 +374,16 @@ export default function InvoiceCreate() {
       }
     }
   } else {
-    // Single-currency mode (KHR or USD): convert the deposit into displayCurrency if needed
     const convertedDeposit = depositCurrency === displayCurrency
       ? rawDepositInput
       : toDisplay(rawDepositInput, depositCurrency, displayCurrency)
-    const applied = Math.min(convertedDeposit, total || 0)
+    const applied = Math.min(convertedDeposit, effectiveTotal || 0)
     if (displayCurrency === 'USD') { depositUsdApplied = applied } else { depositKhrApplied = applied }
   }
 
-  // remaining — single-currency: simple. BOTH mode: per-bucket.
   const remaining = displayCurrency === 'BOTH'
-    ? null // use remainingKhrAfterDeposit / remainingUsdAfterDeposit instead
-    : Math.max(0, (total || 0) - (paymentMode === 'deposit' ? Math.min(displayCurrency === 'USD' ? depositUsdApplied : depositKhrApplied, total || 0) : 0))
+    ? null
+    : Math.max(0, (effectiveTotal || 0) - (paymentMode === 'deposit' ? Math.min(displayCurrency === 'USD' ? depositUsdApplied : depositKhrApplied, effectiveTotal || 0) : 0))
 
   const pageCount = Math.max(1, Math.ceil(cart.length / ROWS_PER_PAGE))
 
@@ -433,21 +397,19 @@ export default function InvoiceCreate() {
 
     setSubmitting(true)
     try {
-      // Map 3-mode paymentMode → backend status + deposit values
       let invoiceStatus
       if (paymentMode === 'pending') {
         invoiceStatus = 'pending'
       } else if (paymentMode === 'paid') {
         invoiceStatus = 'paid'
       } else {
-        // 'deposit' mode — derive status from cascade result
         if (displayCurrency === 'BOTH') {
           const bothCovered = remainingKhrAfterDeposit === 0 && remainingUsdAfterDeposit === 0
           const anyCovered  = depositKhrApplied > 0 || depositUsdApplied > 0
           invoiceStatus = bothCovered ? 'paid' : anyCovered ? 'partial' : 'pending'
         } else {
           const appliedAmt = displayCurrency === 'USD' ? depositUsdApplied : depositKhrApplied
-          invoiceStatus = appliedAmt > 0 && appliedAmt >= (total || 0) ? 'paid' : appliedAmt > 0 ? 'partial' : 'pending'
+          invoiceStatus = appliedAmt > 0 && appliedAmt >= (effectiveTotal || 0) ? 'paid' : appliedAmt > 0 ? 'partial' : 'pending'
         }
       }
 
@@ -464,10 +426,12 @@ export default function InvoiceCreate() {
         currency: displayCurrency,
         usdToKhrRate: usdToKhr,
         khrToUsdRate: khrToUsd,
+        // ── Cash-rounding choice — sent alongside so the backend/print can
+        //    reflect whichever total the person actually selected. ──
+        roundingApplied: displayCurrency === 'BOTH' ? useRoundedTotal : (displayCurrency === 'KHR' && useRoundedTotal),
+        totalKhr: displayCurrency === 'BOTH' ? effectiveTotalKhrBoth : (displayCurrency === 'KHR' ? effectiveTotal : undefined),
         items: cart.map(c => {
           const vCurrency = c.variantCurrency || 'KHR'
-          // BOTH mode: keep each item's own native price (no conversion).
-          // KHR/USD mode: convert into the single invoice currency.
           const finalUnitPrice = displayCurrency === 'BOTH'
             ? c.unitPrice
             : toDisplay(c.unitPrice, vCurrency, displayCurrency)
@@ -512,17 +476,20 @@ export default function InvoiceCreate() {
     ? `${selectedCat?.name ?? ''} › ${selectedProd.name}`
     : selectedCat?.name ?? (browseMode==='search' ? `លទ្ធផល: "${dSearch}"` : null)
 
+  // ── Product cards: grid-cols-2 up through tablet/iPad, 3 only on large
+  //    desktops (xl). items-stretch + h-full on the button keeps every card
+  //    in a row the same height regardless of content length. ──
   const ProductGrid = ({ items, loading }) => (
     loading && items.length === 0
       ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុក...</p>
       : items.length === 0
         ? <div className="text-center py-12"><p className="text-5xl mb-3">📦</p><p className="text-sm text-gray-400">គ្មានផលិតផល</p></div>
-        : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        : <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
             {items.map(p => {
               const cartQtyForProduct = cart.reduce((s, c) => s + (!c.isCustom && c.productId === p._id ? c.qty : 0), 0)
               return (
                 <button key={p._id} onClick={() => selectProduct(p)}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 h-full min-h-[76px] ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                  className={`relative h-full min-h-[76px] flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
                   {cartQtyForProduct > 0 && (
                     <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow">
                       {cartQtyForProduct}
@@ -530,7 +497,7 @@ export default function InvoiceCreate() {
                   )}
                   <span className="text-2xl shrink-0">📦</span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 line-clamp-2">{p.name}</p>
+                    <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
                     <p className="text-xs text-gray-400 truncate">{p.categoryId?.name ?? ''}</p>
                   </div>
                 </button>
@@ -539,10 +506,8 @@ export default function InvoiceCreate() {
           </div>
   )
 
-  // ── Variant card — single source of truth for rendering one variant button ──
-  // Shows a live badge with the quantity already in the cart, plus a quick
-  // − button, so an already-added variant is easy to spot again and easy to
-  // remove/decrement without scrolling down to the cart panel.
+  // ── Variant card — min-height + h-full keeps cards level with each other
+  //    even when one has 1 price tier and its neighbor has 3. ──
   const VariantCard = (v) => {
     const tiers = getTiers(v)
     const vCurrency = v.currency || 'KHR'
@@ -557,7 +522,7 @@ export default function InvoiceCreate() {
     }
 
     return (
-      <div key={v._id} className="relative">
+      <div key={v._id} className="relative h-full">
         {inCart && (
           <div className="absolute -top-2 -right-2 z-10 flex items-center gap-1">
             <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow">
@@ -570,7 +535,7 @@ export default function InvoiceCreate() {
           </div>
         )}
         <button onClick={() => addToCart(v)} disabled={v.stock <= 0}
-          className={`w-full text-left p-4 rounded-xl border-2 bg-white transition-all ${
+          className={`w-full h-full min-h-[188px] flex flex-col text-left p-4 rounded-xl border-2 bg-white transition-all ${
             inCart ? 'border-indigo-400 ring-2 ring-indigo-100' : v.stock>0?'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 active:scale-95':'border-gray-100 opacity-40 cursor-not-allowed'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-mono text-gray-400">{v.sku}</span>
@@ -582,7 +547,7 @@ export default function InvoiceCreate() {
             </div>
           </div>
           <p className="text-sm font-bold text-gray-800">{v.unitValue} {v.unit}{v.brand?` · ${v.brand}`:''}</p>
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 space-y-1 flex-1">
             {tiers.map((t,i) => (
               <div key={i} className="flex justify-between items-center">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TIER_COLORS[t.type]??'bg-gray-100 text-gray-500'}`}>{t.label}</span>
@@ -595,8 +560,6 @@ export default function InvoiceCreate() {
     )
   }
 
-  // ── Variant tier sections — ជាង (light red) and ម្ចាស់ផ្ទះ (light blue), kept
-  // visually separate and sorted by thickness so the list never reads as one messy pile ──
   const VariantSections = ({ list }) => {
     const groups = groupVariantsByTier(list)
     const sections = [
@@ -614,7 +577,7 @@ export default function InvoiceCreate() {
               <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
                 {icon} {label} <span className="text-gray-400 font-normal">({items.length})</span>
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
                 {items.map(v => VariantCard(v))}
               </div>
             </div>
@@ -640,7 +603,7 @@ export default function InvoiceCreate() {
             ))}
           </div>
           {invoiceType==='customer' ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField label="ឈ្មោះអតិថិជន"><input className="input-field" placeholder="អ្នកទិញ..." value={customerName} onChange={e=>setCustomerName(e.target.value)}/></FormField>
               <FormField label="ទូរស័ព្ទ"><input className="input-field" placeholder="09X..." value={customerPhone} onChange={e=>setCustomerPhone(e.target.value)}/></FormField>
               <FormField label="ប្រភេទអតិថិជន">
@@ -658,12 +621,6 @@ export default function InvoiceCreate() {
             </FormField>
           )}
 
-          {/* ══════════════════════════════════════════════
-              CURRENCY COMBO BOX + EXCHANGE RATES
-              KHR  → convert everything to riel and sum as ONE total
-              USD  → convert everything to dollar and sum as ONE total
-              BOTH → NO conversion — show KHR items summed and USD items summed separately
-          ══════════════════════════════════════════════ */}
           <div className="border-t border-gray-100 pt-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-1">
               <h4 className="text-sm font-semibold text-gray-700">💱 រូបិយប័ណ្ណវិក្កយបត្រ</h4>
@@ -687,7 +644,6 @@ export default function InvoiceCreate() {
               <option value="BOTH">៛ + $ បង្ហាញដាច់ពីគ្នា (មិនបម្លែង)</option>
             </select>
 
-            {/* Conversion notice — only relevant in single-currency modes */}
             {isMixedCurrency && displayCurrency !== 'BOTH' && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700 font-medium">
                 ⚠️ មានទំនិញទាំង ៛ និង $ នៅក្នុងកន្ត្រក — ប្រព័ន្ធនឹងបម្លែងទាំងអស់ទៅជា{' '}
@@ -696,7 +652,6 @@ export default function InvoiceCreate() {
               </div>
             )}
 
-            {/* BOTH mode notice */}
             {isMixedCurrency && displayCurrency === 'BOTH' && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700 font-medium">
                 ℹ️ មិនបម្លែងទេ — ទំនិញ ៛ បូកគ្នាដាច់ដោយឡែក និងទំនិញ $ បូកគ្នាដាច់ដោយឡែក។ វិក្កយបត្រនឹងរក្សាទុកទាំងពីរយ៉ាង ដាច់ដោយឡែកពីគ្នា។
@@ -711,7 +666,7 @@ export default function InvoiceCreate() {
             placeholder="ស្វែងរកឈ្មោះផលិតផល..."/>
 
           {(browseMode !== 'categories' || selectedProd) && (
-            <div className="flex items-center gap-2 mt-3 mb-1">
+            <div className="flex items-center gap-2 mt-3 mb-1 flex-wrap">
               <button onClick={goBack} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1 bg-indigo-50">
                 ← ត្រឡប់
               </button>
@@ -736,7 +691,7 @@ export default function InvoiceCreate() {
               </div>
             )}
 
-            {/* SEARCH RESULTS (global — no category selected) */}
+            {/* SEARCH RESULTS */}
             {!selectedProd && browseMode === 'search' && (
               <div>
                 <p className="text-xs text-gray-500 mb-3">លទ្ធផលស្វែងរក: <span className="font-semibold text-gray-700">"{dSearch}"</span></p>
@@ -744,7 +699,7 @@ export default function InvoiceCreate() {
               </div>
             )}
 
-            {/* CATEGORY PRODUCTS — shows category-scoped search results while dSearch is active */}
+            {/* CATEGORY PRODUCTS */}
             {!selectedProd && browseMode === 'products' && (
               <div>
                 <ProductGrid
@@ -762,17 +717,17 @@ export default function InvoiceCreate() {
               </div>
             )}
 
-            {/* CATEGORY LIST */}
+            {/* CATEGORY LIST — 2-per-row on tablet/iPad and phone, 3 only on large desktop */}
             {!selectedProd && browseMode === 'categories' && (
               <div>
                 {loadingCats
                   ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុកប្រភេទ...</p>
                   : categories.length === 0
                     ? <div className="text-center py-12"><p className="text-5xl mb-3">🗂️</p><p className="text-sm text-gray-400">គ្មានប្រភេទ</p></div>
-                    : <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    : <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
                         {categories.map(cat => (
                           <button key={cat._id} onClick={() => openCategory(cat)}
-                            className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 text-left transition-all active:scale-95 group">
+                            className="h-full flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 text-left transition-all active:scale-95 group">
                             <span className="text-2xl shrink-0">🗂️</span>
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 truncate">{cat.name}</p>
@@ -830,7 +785,7 @@ export default function InvoiceCreate() {
           )}
         </div>
 
-        {/* PAGE SPLIT NOTICE — only meaningful in single-currency modes */}
+        {/* PAGE SPLIT NOTICE */}
         {cart.length > ROWS_PER_PAGE && displayCurrency !== 'BOTH' && (
           <div className="card p-4 border-amber-200 bg-amber-50">
             <p className="text-sm font-semibold text-amber-700 mb-2">
@@ -852,7 +807,7 @@ export default function InvoiceCreate() {
         )}
       </div>
 
-      {/* ════ RIGHT: CART ════ */}
+      {/* ════ RIGHT: CART — full width on phone/tablet, fixed width + sticky on desktop ════ */}
       <div className="w-full lg:w-[440px] lg:shrink-0">
         <div className="card lg:sticky lg:top-4">
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -867,7 +822,9 @@ export default function InvoiceCreate() {
             )}
           </div>
 
-          <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+          {/* Cart items — alternating colored border + rounded corners so each
+              product line reads as its own distinct card, not a single blur. */}
+          <div className="max-h-[500px] overflow-y-auto p-3 space-y-3">
             {cart.length === 0 ? (
               <div className="py-16 text-center text-gray-400">
                 <p className="text-5xl mb-3">🛒</p>
@@ -875,14 +832,13 @@ export default function InvoiceCreate() {
               </div>
             ) : cart.map((item, idx) => {
               const vCurrency = item.variantCurrency || 'KHR'
-              // In BOTH mode, show the item's NATIVE price (no conversion).
-              // In KHR/USD mode, show the converted price.
               const shownSubtotal = displayCurrency === 'BOTH'
                 ? item.subtotal
                 : toDisplay(item.subtotal, vCurrency, displayCurrency)
               const shownCurrencyLabel = displayCurrency === 'BOTH' ? vCurrency : displayCurrency
+              const stripeCls = idx % 2 === 0 ? 'border-indigo-200 bg-indigo-50/30' : 'border-teal-200 bg-teal-50/30'
               return (
-                <div key={idx} className="p-4 space-y-3">
+                <div key={idx} className={`p-4 space-y-3 rounded-2xl border-2 ${stripeCls}`}>
                   <div className="flex items-start justify-between gap-2">
                     <input
                       value={item.productName}
@@ -915,13 +871,14 @@ export default function InvoiceCreate() {
                     )}
                   </div>
 
+                  {/* Variant switch combo box — bigger box + bigger font */}
                   {!item.isCustom && item.variantOptions?.length > 0 && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs text-gray-400 shrink-0">🔀 ប្តូរប្រភេទ:</span>
                       <select
                         value={item.variantId}
                         onChange={e => switchVariant(idx, e.target.value)}
-                        className="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-indigo-400"
+                        className="flex-1 min-w-0 text-sm sm:text-base font-medium border-2 border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-indigo-400"
                       >
                         {item.variantOptions.map(v => {
                           const vPrice = getTiers(v)[0]?.price ?? v.price ?? 0
@@ -977,7 +934,7 @@ export default function InvoiceCreate() {
           </div>
 
           <div className="p-5 border-t border-gray-100 space-y-4">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <select value={discountType} onChange={e=>{setDiscountType(e.target.value);setDiscountValue('')}} className="border-2 border-gray-200 rounded-xl text-sm px-3 py-2 focus:outline-none focus:border-indigo-400 w-28">
                 <option value="none">បញ្ចុះ</option><option value="percent">% ភាគរយ</option><option value="fixed">ចំនួនថេរ</option>
               </select>
@@ -990,7 +947,24 @@ export default function InvoiceCreate() {
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between text-sm text-gray-600"><span>សរុបរង:</span><span className="font-semibold">{fmtDisplay(subtotalInDisplay)}</span></div>
                 {discountAmt > 0 && <div className="flex justify-between text-sm text-red-500"><span>បញ្ចុះ{discountType==='percent'?` ${discountValue}%`:''}:</span><span className="font-semibold">−{fmtDisplay(discountAmt)}</span></div>}
-                <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-200"><span>សរុបទូទៅ:</span><span className="text-indigo-600">{fmtDisplay(total)}</span></div>
+
+                {/* Real vs Rounded total picker — KHR only, rounded selected by default */}
+                {displayCurrency === 'KHR' ? (
+                  <div className="pt-2 border-t border-gray-200 space-y-1.5">
+                    <button type="button" onClick={() => setUseRoundedTotal(false)}
+                      className={`w-full flex justify-between items-center rounded-lg px-2.5 py-1.5 border-2 transition-colors ${!useRoundedTotal ? 'border-indigo-500 bg-indigo-50' : 'border-transparent hover:bg-gray-100'}`}>
+                      <span className="text-xs font-medium text-gray-500">តម្លៃពិត</span>
+                      <span className="font-bold text-gray-700">{fmtKHR(total)}</span>
+                    </button>
+                    <button type="button" onClick={() => setUseRoundedTotal(true)}
+                      className={`w-full flex justify-between items-center rounded-lg px-2.5 py-1.5 border-2 transition-colors ${useRoundedTotal ? 'border-indigo-500 bg-indigo-50' : 'border-transparent hover:bg-gray-100'}`}>
+                      <span className="text-xs font-medium text-gray-500">តម្លៃបង្គត់ <span className="text-[10px] text-indigo-400">(លំនាំដើម)</span></span>
+                      <span className="font-bold text-gray-700">{fmtKHR(roundedTotal)}</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="flex justify-between font-bold text-lg text-gray-800 pt-2 border-t border-gray-200"><span>សរុបទូទៅ:</span><span className="text-indigo-600">{fmtDisplay(effectiveTotal)}</span></div>
               </div>
             )}
 
@@ -1000,7 +974,7 @@ export default function InvoiceCreate() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-100">
                     <p className="text-xs text-blue-500 mb-1">ទំនិញជា ៛ (មិនបម្លែង)</p>
-                    <p className="font-bold text-blue-700">{fmtKHR(totalKhrBoth)}</p>
+                    <p className="font-bold text-blue-700">{fmtKHR(effectiveTotalKhrBoth)}</p>
                     {discountKhr > 0 && <p className="text-[10px] text-blue-400 mt-0.5">បញ្ចុះ: −{fmtKHR(discountKhr)}</p>}
                   </div>
                   <div className="bg-green-50 rounded-lg p-3 text-center border border-green-100">
@@ -1009,17 +983,25 @@ export default function InvoiceCreate() {
                     {discountUsd > 0 && <p className="text-[10px] text-green-400 mt-0.5">បញ្ចុះ: −{fmtUSD(discountUsd)}</p>}
                   </div>
                 </div>
+
+                {/* Real vs Rounded KHR total picker */}
+                <button type="button" onClick={() => setUseRoundedTotal(v => !v)}
+                  className="w-full flex justify-between items-center rounded-lg px-2.5 py-1.5 border-2 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50">
+                  <span className="text-[11px] font-medium text-gray-500">
+                    ៛ តម្លៃពិត {fmtKHR(totalKhrBoth)} → ប្រើ {useRoundedTotal ? 'តម្លៃបង្គត់' : 'តម្លៃពិត'}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${useRoundedTotal ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                    {useRoundedTotal ? 'បង្គត់ ✓' : 'ពិត'}
+                  </span>
+                </button>
+
                 <p className="text-[10px] text-gray-400 text-center">ទាំងពីរនេះមិនត្រូវបានបូកបញ្ចូលគ្នាទេ — នីមួយៗរក្សាទុកដាច់ដោយឡែកក្នុងវិក្កយបត្រតែមួយ</p>
               </div>
             )}
 
-            {/* ══════════════════════════════════════════════
-                PAYMENT MODE — 3 explicit choices
-            ══════════════════════════════════════════════ */}
             <div className="space-y-3">
               <p className="text-xs font-semibold text-gray-600">💳 ស្ថានភាពការទូទាត់</p>
 
-              {/* 3 mode buttons */}
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { mode: 'paid',    icon: '✅', label: 'បានទូទាត់ពេញ',  cls: 'border-green-400 bg-green-500 text-white', inactive: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50' },
@@ -1035,7 +1017,6 @@ export default function InvoiceCreate() {
                 ))}
               </div>
 
-              {/* Mode description */}
               <div className={`rounded-xl px-3 py-2 text-xs font-medium ${
                 paymentMode === 'paid'    ? 'bg-green-50 text-green-700 border border-green-100'
                 : paymentMode === 'deposit' ? 'bg-orange-50 text-orange-700 border border-orange-100'
@@ -1046,12 +1027,10 @@ export default function InvoiceCreate() {
                 {paymentMode === 'pending' && 'អតិថិជនមិនទាន់បង់ — ការបោះពុម្ពនឹងបង្ហាញ «នៅខ្វះ» = សរុបទូទៅ មិនមានជួរ «កក់មុន»'}
               </div>
 
-              {/* Deposit input — only shown when mode is 'deposit' */}
               {paymentMode === 'deposit' && (
                 <div className="space-y-3 bg-orange-50 border border-orange-200 rounded-xl p-3">
                   <p className="text-xs font-semibold text-orange-700">អតិថិជនអាចបង់ជា ៛ ឬ $ — ប្រព័ន្ធគណនាបម្លែងស្វ័យប្រវត្តិ</p>
 
-                  {/* Deposit currency picker */}
                   <div className="flex gap-2">
                     {[['KHR', '៛ រៀល'], ['USD', '$ ដុល្លារ']].map(([val, label]) => (
                       <button key={val} type="button"
@@ -1072,27 +1051,25 @@ export default function InvoiceCreate() {
                     </span>
                   </div>
 
-                  {/* Quick % buttons */}
-                  {displayCurrency !== 'BOTH' && total > 0 && (
-                    <div className="flex gap-2">
+                  {displayCurrency !== 'BOTH' && effectiveTotal > 0 && (
+                    <div className="flex flex-wrap gap-2">
                       {[25, 50, 75].map(pct => {
                         const base = depositCurrency === displayCurrency
-                          ? total * pct / 100
-                          : toDisplay(total * pct / 100, displayCurrency, depositCurrency)
+                          ? effectiveTotal * pct / 100
+                          : toDisplay(effectiveTotal * pct / 100, displayCurrency, depositCurrency)
                         return (
                           <button key={pct} onClick={() => setDeposit(depositCurrency === 'USD' ? +base.toFixed(2) : Math.round(base))}
-                            className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-100">{pct}%
+                            className="flex-1 min-w-[60px] py-1.5 text-xs font-semibold rounded-lg bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-100">{pct}%
                           </button>
                         )
                       })}
                       <button onClick={() => {
-                        const full = depositCurrency === displayCurrency ? total : toDisplay(total, displayCurrency, depositCurrency)
+                        const full = depositCurrency === displayCurrency ? effectiveTotal : toDisplay(effectiveTotal, displayCurrency, depositCurrency)
                         setDeposit(depositCurrency === 'USD' ? +full.toFixed(2) : Math.round(full))
-                      }} className="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600">ពេញ</button>
+                      }} className="flex-1 min-w-[60px] py-1.5 text-xs font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600">ពេញ</button>
                     </div>
                   )}
 
-                  {/* Result breakdown */}
                   {rawDepositInput > 0 && (
                     <div className="space-y-2 pt-2 border-t border-orange-200">
                       {displayCurrency === 'BOTH' ? (
