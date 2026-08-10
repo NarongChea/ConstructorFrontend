@@ -124,6 +124,16 @@ export default function InvoiceCreate() {
       .finally(() => setLoadingSearch(false))
   }, [dSearch, selectedCat])
 
+  // ── Category-name matches for the top-level search box. Only relevant when
+  //    browsing at the top level (no category drilled into yet) — once inside
+  //    a category, the search box only searches that category's products, and
+  //    matching against category names again would be confusing. Matched
+  //    client-side against the already-loaded `categories` list — cheap, no
+  //    extra request, and updates instantly as the user types. ──
+  const matchingCategories = (!selectedCat && dSearch)
+    ? categories.filter(c => c.name?.toLowerCase().includes(dSearch.toLowerCase()))
+    : []
+
   const openCategory = useCallback(async (cat) => {
     setSelectedCat(cat); setSelectedProd(null); setVariants([])
     setSearch(''); setSearchResults([])
@@ -506,6 +516,29 @@ export default function InvoiceCreate() {
           </div>
   )
 
+  // ── Category quick-jump cards shown above search results when the search
+  //    text matches a category name (top-level search only). Clicking opens
+  //    that category via the normal openCategory flow. ──
+  const CategoryMatchGrid = ({ items }) => (
+    items.length === 0 ? null : (
+      <div className="mb-4">
+        <p className="text-xs font-semibold text-gray-500 mb-2">🗂️ ប្រភេទដែលត្រូវនឹងការស្វែងរក</p>
+        <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
+          {items.map(cat => (
+            <button key={cat._id} onClick={() => openCategory(cat)}
+              className="h-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:border-indigo-500 hover:bg-indigo-100 text-left transition-all active:scale-95">
+              <span className="text-2xl shrink-0">🗂️</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-indigo-700 truncate">{cat.name}</p>
+                {cat.productCount != null && <p className="text-xs text-indigo-400">{cat.productCount} ផលិតផល</p>}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  )
+
   // ── Variant card — min-height + h-full keeps cards level with each other
   //    even when one has 1 price tier and its neighbor has 3. ──
   const VariantCard = (v) => {
@@ -663,7 +696,7 @@ export default function InvoiceCreate() {
         {/* Product browser card */}
         <div className="card p-5" ref={browseCardRef}>
           <SearchBar value={search} onChange={v => { setSearch(v); if (!v) { setBrowseMode(selectedCat ? 'products' : 'categories'); setSearchResults([]) } }}
-            placeholder="ស្វែងរកឈ្មោះផលិតផល..."/>
+            placeholder="ស្វែងរកឈ្មោះផលិតផល ឬប្រភេទ..."/>
 
           {(browseMode !== 'categories' || selectedProd) && (
             <div className="flex items-center gap-2 mt-3 mb-1 flex-wrap">
@@ -691,10 +724,11 @@ export default function InvoiceCreate() {
               </div>
             )}
 
-            {/* SEARCH RESULTS */}
+            {/* SEARCH RESULTS — includes matching categories above matching products */}
             {!selectedProd && browseMode === 'search' && (
               <div>
                 <p className="text-xs text-gray-500 mb-3">លទ្ធផលស្វែងរក: <span className="font-semibold text-gray-700">"{dSearch}"</span></p>
+                <CategoryMatchGrid items={matchingCategories} />
                 <ProductGrid items={searchResults} loading={loadingSearch} />
               </div>
             )}

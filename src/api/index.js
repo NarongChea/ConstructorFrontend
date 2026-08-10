@@ -57,14 +57,21 @@ export const variantAPI = {
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
+// NOTE: invoices with many line items (bulk orders, 30-40+ variants) can take
+// longer than the global 15s default to process server-side (stock checks,
+// price resolution, stock-history writes per item). Override the timeout on
+// these specific calls rather than raising the global default, so unrelated
+// requests still fail fast if something is actually hung.
+const BULK_TIMEOUT = 60000 // 60s
+
 export const invoiceAPI = {
   list:         (p)     => api.get('/invoices', { params: p }),
   get:          (id)    => api.get(`/invoices/${id}`),
-  create:       (d)     => api.post('/invoices', d),
+  create:       (d)     => api.post('/invoices', d, { timeout: BULK_TIMEOUT }),
   updateStatus: (id, s) => api.patch(`/invoices/${id}/status`, { status: s }),
   markPrinted:  (id)    => api.patch(`/invoices/${id}/print`),
-  update:       (id, d) => api.put(`/invoices/${id}`, d),
-  preview:      (d)     => api.post('/invoices/preview', d),
+  update:       (id, d) => api.put(`/invoices/${id}`, d, { timeout: BULK_TIMEOUT }),
+  preview:      (d)     => api.post('/invoices/preview', d, { timeout: BULK_TIMEOUT }),
   history:      (id)    => api.get(`/invoices/${id}/history`),
 }
 
@@ -72,7 +79,7 @@ export const invoiceAPI = {
 export const purchaseAPI = {
   list:   (p)  => api.get('/purchases', { params: p }),
   get:    (id) => api.get(`/purchases/${id}`),
-  create: (d)  => api.post('/purchases', d),
+  create: (d)  => api.post('/purchases', d, { timeout: BULK_TIMEOUT }),
 }
 
 // ── Partners ──────────────────────────────────────────────────────────────────
@@ -155,13 +162,10 @@ export const activityLogAPI = {
   forResource: (resource, resourceId) => api.get(`/activity-logs/resource/${resource}/${resourceId}`),
 }
 
-// ── Settings (NEW) ────────────────────────────────────────────────────────────
-// Exchange rate (KHR per 1 USD) lives here — set once on the Settings page,
-// then read by InvoiceCreate so every invoice uses the current global rate.
+// ── Settings ──────────────────────────────────────────────────────────────────
 export const settingAPI = {
   getAll:          ()     => api.get('/settings'),
   getExchangeRate: ()     => api.get('/settings/exchange-rate'),
-  // d = { usdToKhr?: number, khrToUsd?: number } — either or both
   updateExchangeRate: (d) => api.put('/settings/exchange-rate', d),
 }
 
