@@ -47,6 +47,15 @@ const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
 const fmtByCurrency = (n, currency) => currency === 'USD' ? fmtUSD(n) : fmtKHR(n)
 
+// Round to the nearest real riel note/coin denomination (100៛), so a
+// calculated 4,074៛ becomes something a cashier can actually hand over.
+const roundKHR = (n, dir) => {
+  const base = Math.round(Number(n) || 0)
+  if (dir === 'up')   return Math.ceil(base / 100) * 100
+  if (dir === 'down') return Math.floor(base / 100) * 100
+  return Math.round(base / 100) * 100
+}
+
 function InvoiceCopy({ invoice, copyLabel }) {
   const items = invoice.items || []
   const rows  = [...items]
@@ -68,7 +77,6 @@ function InvoiceCopy({ invoice, copyLabel }) {
   const remainingAmt = (invoice.remainingAmount !== undefined && invoice.remainingAmount !== null)
     ? Number(invoice.remainingAmount)
     : Math.max(0, totalAmt - depositAmt)
-  // hasDeposit: true only when there was an explicit partial deposit recorded
   const hasDeposit  = depositAmt > 0
 
   // ── BOTH-currency figures ──
@@ -84,14 +92,7 @@ function InvoiceCopy({ invoice, copyLabel }) {
     : Math.max(0, totalUSD - depositUSD)
   const hasDepositBoth = depositKHR > 0 || depositUSD > 0
 
-  // ── Balance display logic ──
-  // paid + no deposit  → show "✓ បានបង់ពេញ" (customer paid in full, no partial)
-  // paid + has deposit → show "✓ បានបង់ពេញ" (deposit covered everything)
-  // partial            → show remaining amount in red
-  // pending            → show full total (nothing paid yet)
-  const balanceSingle = isPaid
-    ? null          // null = show green "paid" marker
-    : remainingAmt  // pending/partial = show what's owed
+  const balanceSingle = isPaid ? null : remainingAmt
 
   return (
     <div style={{ padding: '6mm 9mm', position: 'relative', boxSizing: 'border-box' }}>
@@ -219,10 +220,8 @@ function InvoiceCopy({ invoice, copyLabel }) {
           {/* Right: totals */}
           <td style={{ border: `1.5px solid ${B}`, padding: 0, verticalAlign: 'top' }}>
             {isBoth ? (
-              // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $) ──
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
                 <tbody>
-                  {/* Subtotal + discount — only if discount exists */}
                   {(invoice.discountAmountKHR > 0 || invoice.discountAmountUSD > 0) && (<>
                     <tr style={{ borderBottom: `1px solid ${B}` }}>
                       <td style={{ padding: '3mm 4mm', fontWeight: '600', fontSize: '13px', color: '#555', borderRight: `1px solid ${B}` }}>សរុបរង</td>
@@ -236,34 +235,28 @@ function InvoiceCopy({ invoice, copyLabel }) {
                     </tr>
                   </>)}
 
-                  {/* Currency header sub-row */}
                   <tr style={{ background: LB, borderBottom: `1px solid ${B}` }}>
                     <td style={{ padding: '2mm 4mm', borderRight: `1px solid ${B}` }}></td>
                     <td style={{ padding: '2mm 4mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px', borderRight: `1px dashed ${B}` }}>៛ រៀល</td>
                     <td style={{ padding: '2mm 4mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px' }}>$ ដុល្លារ</td>
                   </tr>
 
-                  {/* Total row */}
                   <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
                     <td style={{ padding: '4mm', fontWeight: '900', fontSize: '17px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
                     <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '16px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
                     <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '16px', color: B }}>{fmtUSD(totalUSD)}</td>
                   </tr>
 
-                  {/* Deposit row — only when there's an actual deposit amount */}
-                  
-                    <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
-                        {depositKHR > 0 ? `−${fmtKHR(depositKHR)}` : '—'}
-                      </td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
-                        {depositUSD > 0 ? `−${fmtUSD(depositUSD)}` : '—'}
-                      </td>
-                    </tr>
-                  
+                  <tr style={{ borderBottom: `1px solid ${B}` }}>
+                    <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
+                    <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
+                      {depositKHR > 0 ? `−${fmtKHR(depositKHR)}` : '—'}
+                    </td>
+                    <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
+                      {depositUSD > 0 ? `−${fmtUSD(depositUSD)}` : '—'}
+                    </td>
+                  </tr>
 
-                  {/* Balance row — hidden entirely when fully paid with no deposit */}
                   {(!isPaid || hasDepositBoth) && (
                     <tr>
                       <td style={{ padding: '4mm', fontWeight: '900', fontSize: '18px', color: B, borderRight: `1px solid ${B}` }}>នៅខ្វះ/BALANCE</td>
@@ -280,7 +273,6 @@ function InvoiceCopy({ invoice, copyLabel }) {
                 </tbody>
               </table>
             ) : (
-              // ── SINGLE-CURRENCY totals ──
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
                 <tbody>
                   {invoice.discountAmount > 0 && (<>
@@ -297,32 +289,25 @@ function InvoiceCopy({ invoice, copyLabel }) {
                   <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
                     <td style={{ padding: '4mm', fontWeight: '900', fontSize: '17px', color: B }}>សរុប/TOTAL</td>
                     <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '17px', color: B }}>{fmtByCurrency(totalAmt, invoice.currency)}</td>
-                    
                   </tr>
 
-                  {/* Deposit row — only when there's an actual deposit amount */}
-                  
-                    <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px' }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a' }}>
-                        {hasDeposit && ("-"+fmtByCurrency(depositAmt, invoice.currency))}
-                      </td>
-                    </tr>
-                  
+                  <tr style={{ borderBottom: `1px solid ${B}` }}>
+                    <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px' }}>កក់មុន/DEPOSIT</td>
+                    <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a' }}>
+                      {hasDeposit && ("-"+fmtByCurrency(depositAmt, invoice.currency))}
+                    </td>
+                  </tr>
 
-                  {/* Balance row — hidden entirely when fully paid with no deposit */}
-                  
-                    <tr>
-                      <td style={{ padding: '4mm', fontWeight: '900', fontSize: '18px', color: B }}>នៅខ្វះ/BALANCE</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '18px',
-                        color: balanceSingle === 0 ? '#1a7a3a' : 'red' }}>
-                      {(!isPaid || hasDeposit) && (
-                        balanceSingle === 0
-                          ? '✓ បានបង់ពេញ'
-                          : fmtByCurrency(balanceSingle, invoice.currency))}
-                      </td>
-                    </tr>
-                  
+                  <tr>
+                    <td style={{ padding: '4mm', fontWeight: '900', fontSize: '18px', color: B }}>នៅខ្វះ/BALANCE</td>
+                    <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '18px',
+                      color: balanceSingle === 0 ? '#1a7a3a' : 'red' }}>
+                    {(!isPaid || hasDeposit) && (
+                      balanceSingle === 0
+                        ? '✓ បានបង់ពេញ'
+                        : fmtByCurrency(balanceSingle, invoice.currency))}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             )}
@@ -346,6 +331,15 @@ export default function InvoiceDetail() {
   const [payCurrency,    setPayCurrency]    = useState('KHR')
   const [paySaving,      setPaySaving]      = useState(false)
   const [notPaidConfirm, setNotPaidConfirm] = useState(false)
+
+  // ── Pre-print adjustment — lets the printed totals be rounded to real
+  //    riel denominations (e.g. 4,074៛ → 4,100៛) without touching the
+  //    saved invoice data in the database. Only affects what gets printed. ──
+  const [showAdjust, setShowAdjust] = useState(false)
+  const [printOverrides, setPrintOverrides] = useState({
+    total: '', deposit: '', remaining: '',
+    totalKHR: '', totalUSD: '', depositKHR: '', depositUSD: '', remainingKHR: '', remainingUSD: '',
+  })
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -475,6 +469,57 @@ export default function InvoiceDetail() {
     : (!isCancelled && !isFullyPaid)
   const canMarkNotPaid = !isCancelled && !isPending
 
+  // ── Build the invoice object actually used for printing: any field the
+  //    user edited in the Adjust modal overrides the real calculated value. ──
+  const buildDisplayInvoice = () => {
+    const fieldMap = isBoth
+      ? { totalKHR: 'totalKHR', totalUSD: 'totalUSD', depositKHR: 'depositKHR', depositUSD: 'depositUSD', remainingKHR: 'remainingKHR', remainingUSD: 'remainingUSD' }
+      : { total: 'total', deposit: 'depositAmount', remaining: 'remainingAmount' }
+    const patch = {}
+    Object.entries(fieldMap).forEach(([overrideKey, invoiceField]) => {
+      const raw = printOverrides[overrideKey]
+      if (raw !== '' && raw !== null && raw !== undefined && !Number.isNaN(Number(raw))) {
+        patch[invoiceField] = Number(raw)
+      }
+    })
+    return { ...invoice, ...patch }
+  }
+  const displayInvoice = buildDisplayInvoice()
+  const hasAnyOverride = Object.values(printOverrides).some(v => v !== '')
+
+  const openAdjustModal = () => {
+    // Prefill with the current calculated numbers so editing means tweaking,
+    // not typing everything from scratch.
+    setPrintOverrides(isBoth
+      ? {
+          total: '', deposit: '', remaining: '',
+          totalKHR: String(totalKHR), totalUSD: String(totalUSD.toFixed(2)),
+          depositKHR: String(depositKHR), depositUSD: String(depositUSD.toFixed(2)),
+          remainingKHR: String(remainingKHR), remainingUSD: String(remainingUSD.toFixed(2)),
+        }
+      : {
+          total: String(totalAmt), deposit: String(depositAmt), remaining: String(remaining),
+          totalKHR: '', totalUSD: '', depositKHR: '', depositUSD: '', remainingKHR: '', remainingUSD: '',
+        })
+    setShowAdjust(true)
+  }
+
+  const resetOverrides = () => {
+    setPrintOverrides({
+      total: '', deposit: '', remaining: '',
+      totalKHR: '', totalUSD: '', depositKHR: '', depositUSD: '', remainingKHR: '', remainingUSD: '',
+    })
+  }
+
+  const setOverride = (key, val) => setPrintOverrides(prev => ({ ...prev, [key]: val }))
+  const roundOverride = (key, dir) => setPrintOverrides(prev => ({ ...prev, [key]: String(roundKHR(prev[key], dir)) }))
+
+  const confirmAdjustAndPrint = () => {
+    setShowAdjust(false)
+    // Slight delay so state settles into displayInvoice before the iframe clones it
+    setTimeout(() => handlePrint(), 50)
+  }
+
   return (
     <div className="space-y-4">
       <style>{PRINT_STYLE}</style>
@@ -486,6 +531,7 @@ export default function InvoiceDetail() {
         <div className="flex-1" />
         <span className={`${st.cls} text-sm px-3 py-1.5`}>{st.label}</span>
         {isBoth && <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-700 font-semibold">៛ + $ ដាច់ដោយឡែក</span>}
+        {hasAnyOverride && <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold">✏️ តម្លៃបានកែសម្រាប់បោះពុម្ព</span>}
 
         {canRecordPayment && (
           <button onClick={openPaymentModal}
@@ -506,10 +552,10 @@ export default function InvoiceDetail() {
         {!isCancelled && (
           <button onClick={() => setCancelConfirm(true)} className="btn-danger text-sm">🚫 បោះបង់</button>
         )}
-        <button onClick={handlePrint} className="btn-primary text-sm">🖨️ បោះពុម្ព / PDF</button>
+        <button onClick={openAdjustModal} className="btn-primary text-sm">🖨️ បោះពុម្ព / PDF</button>
       </div>
 
-      {/* Printable invoice */}
+      {/* Printable invoice — uses displayInvoice so print-only overrides apply */}
       <div style={{ overflowX: 'auto' }}>
         <div id="inv-print" ref={printRef} style={{
           fontFamily: "'Khmer OS Battambang','Hanuman','Noto Sans Khmer',sans-serif",
@@ -518,10 +564,10 @@ export default function InvoiceDetail() {
           boxShadow: '0 4px 32px rgba(0,0,0,0.12)', overflow: 'visible',
         }}>
           <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
-            <InvoiceCopy invoice={invoice} copyLabel="អតិថិជន / Customer Copy" />
+            <InvoiceCopy invoice={displayInvoice} copyLabel="អតិថិជន / Customer Copy" />
           </div>
           <div className="print-only">
-            <InvoiceCopy invoice={invoice} copyLabel="ហាង / Shop Copy" />
+            <InvoiceCopy invoice={displayInvoice} copyLabel="ហាង / Shop Copy" />
           </div>
         </div>
       </div>
@@ -575,6 +621,101 @@ export default function InvoiceDetail() {
           )}
         </div>
       </div>
+
+      {/* ── Adjust-before-print modal ── */}
+      <Modal open={showAdjust} onClose={() => setShowAdjust(false)} title="✏️ កែតម្លៃមុនបោះពុម្ព" size="sm">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+            កែលេខទាំងនេះសម្រាប់តែការបោះពុម្ពប៉ុណ្ណោះ — ទិន្នន័យវិក្កយបត្រដើមនៅក្នុងប្រព័ន្ធមិនប្រែប្រួលទេ។ ប្រើប៊ូតុង ⤴⤵ ដើម្បីបង្គត់ទៅជាចំនួនប្រាក់រៀលពិត (រាល់ 100៛)។
+          </p>
+
+          {!isBoth ? (
+            <div className="space-y-3">
+              <FormField label="សរុប (Total)">
+                <div className="flex gap-2">
+                  <input type="number" className="input-field flex-1" value={printOverrides.total}
+                    onChange={e => setOverride('total', e.target.value)} />
+                  {invoice.currency !== 'USD' && <>
+                    <button onClick={() => roundOverride('total', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                    <button onClick={() => roundOverride('total', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                  </>}
+                </div>
+              </FormField>
+              <FormField label="បានបង់ (Deposit)">
+                <div className="flex gap-2">
+                  <input type="number" className="input-field flex-1" value={printOverrides.deposit}
+                    onChange={e => setOverride('deposit', e.target.value)} />
+                  {invoice.currency !== 'USD' && <>
+                    <button onClick={() => roundOverride('deposit', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                    <button onClick={() => roundOverride('deposit', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                  </>}
+                </div>
+              </FormField>
+              <FormField label="នៅខ្វះ (Balance)">
+                <div className="flex gap-2">
+                  <input type="number" className="input-field flex-1" value={printOverrides.remaining}
+                    onChange={e => setOverride('remaining', e.target.value)} />
+                  {invoice.currency !== 'USD' && <>
+                    <button onClick={() => roundOverride('remaining', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                    <button onClick={() => roundOverride('remaining', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                  </>}
+                </div>
+              </FormField>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-blue-600 mb-2">៛ រៀល</p>
+                <div className="space-y-2">
+                  <FormField label="សរុប ៛">
+                    <div className="flex gap-2">
+                      <input type="number" className="input-field flex-1" value={printOverrides.totalKHR} onChange={e => setOverride('totalKHR', e.target.value)} />
+                      <button onClick={() => roundOverride('totalKHR', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                      <button onClick={() => roundOverride('totalKHR', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                    </div>
+                  </FormField>
+                  <FormField label="បានបង់ ៛">
+                    <div className="flex gap-2">
+                      <input type="number" className="input-field flex-1" value={printOverrides.depositKHR} onChange={e => setOverride('depositKHR', e.target.value)} />
+                      <button onClick={() => roundOverride('depositKHR', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                      <button onClick={() => roundOverride('depositKHR', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                    </div>
+                  </FormField>
+                  <FormField label="នៅខ្វះ ៛">
+                    <div className="flex gap-2">
+                      <input type="number" className="input-field flex-1" value={printOverrides.remainingKHR} onChange={e => setOverride('remainingKHR', e.target.value)} />
+                      <button onClick={() => roundOverride('remainingKHR', 'down')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤵</button>
+                      <button onClick={() => roundOverride('remainingKHR', 'up')} className="px-2 border-2 border-gray-200 rounded-lg text-xs">⤴</button>
+                    </div>
+                  </FormField>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-green-600 mb-2">$ ដុល្លារ</p>
+                <div className="space-y-2">
+                  <FormField label="សរុប $">
+                    <input type="number" step="0.01" className="input-field" value={printOverrides.totalUSD} onChange={e => setOverride('totalUSD', e.target.value)} />
+                  </FormField>
+                  <FormField label="បានបង់ $">
+                    <input type="number" step="0.01" className="input-field" value={printOverrides.depositUSD} onChange={e => setOverride('depositUSD', e.target.value)} />
+                  </FormField>
+                  <FormField label="នៅខ្វះ $">
+                    <input type="number" step="0.01" className="input-field" value={printOverrides.remainingUSD} onChange={e => setOverride('remainingUSD', e.target.value)} />
+                  </FormField>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-2 border-t">
+            <button onClick={resetOverrides} className="text-xs text-gray-400 hover:text-gray-600 font-medium">↺ សុទ្ធតាមគណនា</button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowAdjust(false)} className="btn-secondary">បោះបង់</button>
+              <button onClick={confirmAdjustAndPrint} className="btn-primary">🖨️ បន្តទៅបោះពុម្ព</button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Record Payment Modal */}
       <Modal open={showPayment} onClose={() => setShowPayment(false)} title="កត់ត្រាការទូទាត់" size="sm">
