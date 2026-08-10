@@ -29,7 +29,7 @@ const LB = '#dde4f6'
 //    and shop — repeats this pagination). Row numbering (No column) keeps
 //    counting across pages via `startIndex`; totals/footer only render on the
 //    LAST page of each copy so the total isn't printed multiple times. ──
-const ROWS_PER_PAGE = 15
+const ROWS_PER_PAGE = 18
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
