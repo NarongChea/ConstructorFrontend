@@ -8,13 +8,19 @@ import Modal from '../../components/UI/Modal.jsx'
 import ConfirmDialog from '../../components/UI/ConfirmDialog.jsx'
 import { sendOrderToTelegram } from '../../utils/telegram.js'
 
+// ── PAPER: A5 portrait (148mm x 210mm). Margin kept narrow (3mm) so the
+//    printout uses close to the full sheet. NOTE: the browser (Chrome/Edge/etc.)
+//    still adds its own header/footer line (URL + date + page number) at the
+//    top/bottom of the printed page — that is NOT controlled by this CSS.
+//    To remove it, in the print dialog open "More settings" and uncheck
+//    "Headers and footers" before printing/saving as PDF. ──
 const PRINT_STYLE = `
 @media print {
-  @page { size: A3 portrait; margin: 0mm; }
+  @page { size: A5 portrait; margin: 3mm; }
   html, body { margin: 0 !important; padding: 0 !important; }
   body * { visibility: hidden !important; }
   #inv-print, #inv-print * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  #inv-print { position: absolute !important; top: 0; left: 0; width: 100% !important; max-width: 297mm !important; }
+  #inv-print { position: absolute !important; top: 0; left: 0; width: 100% !important; max-width: 148mm !important; }
   .no-print   { display: none !important; }
   .print-only { display: block !important; }
   .page-copy  { page-break-inside: avoid; break-inside: avoid; }
@@ -22,14 +28,20 @@ const PRINT_STYLE = `
 `
 
 const B  = '#1a2c8a'
-const LB = '#dde4f6'
+// Previously a light-blue accent used for the badge circle, zebra-striped rows,
+// and the highlighted totals/currency-header rows. Set to white per request —
+// every place that referenced LB now renders plain white instead of light blue.
+const LB = '#ffffff'
 
-// ── Max rows printed on a single physical page. Any invoice with more items
-//    than this gets split across multiple pages per copy (each copy — customer
-//    and shop — repeats this pagination). Row numbering (No column) keeps
-//    counting across pages via `startIndex`; totals/footer only render on the
-//    LAST page of each copy so the total isn't printed multiple times. ──
-const ROWS_PER_PAGE = 15
+// ── Max rows printed on a single physical page. A5 is much smaller than the
+//    old A3 layout, so this is far lower than before. Any invoice with more
+//    items than this gets split across multiple pages per copy (each copy —
+//    customer and shop — repeats this pagination). Row numbering (No column)
+//    keeps counting across pages via `startIndex`; totals/footer only render
+//    on the LAST page of each copy so the total isn't printed multiple times.
+//    If rows still overflow the page in your printer/PDF preview, lower this
+//    number further (try 6 or 7). ──
+const ROWS_PER_PAGE = 8
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
@@ -39,13 +51,13 @@ const CO = {
 }
 
 const TH = {
-  padding: '4mm 3mm', border: `1.5px solid ${B}`, fontWeight: '800',
-  textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3,
-  color: '#fff', fontSize: '15px',
+  padding: '1.5mm 1mm', border: `1px solid ${B}`, fontWeight: '700',
+  textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.2,
+  color: '#fff', fontSize: '8px',
 }
 const TD = {
-  padding: '2.5mm 3mm', border: `1.5px solid ${B}`,
-  height: '12mm', fontSize: '15px',
+  padding: '1mm 1mm', border: `1px solid ${B}`,
+  height: '5.5mm', fontSize: '8px',
 }
 
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
@@ -107,68 +119,69 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
     : remainingAmt  // pending/partial = show what's owed
 
   return (
-    <div style={{ padding: '6mm 9mm', position: 'relative', boxSizing: 'border-box' }}>
-      <div style={{ position: 'absolute', top: '6mm', right: '9mm', fontSize: '13px', color: B, fontWeight: '700', opacity: 0.5 }}>
+    <div style={{ padding: '4mm 5mm', position: 'relative', boxSizing: 'border-box', background: '#fff' }}>
+      <div style={{ position: 'absolute', top: '3mm', right: '4mm', fontSize: '7px', color: B, fontWeight: '700', opacity: 0.5 }}>
         {copyLabel}
         {pageInfo && pageInfo.total > 1 && (
-          <span style={{ marginLeft: '3mm', fontWeight: '600' }}>
+          <span style={{ marginLeft: '2mm', fontWeight: '600' }}>
             &nbsp;— ទំព័រ {pageInfo.page}/{pageInfo.total}
           </span>
         )}
       </div>
 
       {/* Header */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4mm' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
         <tbody><tr>
-          <td style={{ width: '34mm', verticalAlign: 'middle' }}>
-            <div style={{ width: '30mm', height: '30mm', border: `4px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
-              <div style={{ width: '23mm', height: '23mm', borderRadius: '50%', border: `2.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '35px', fontWeight: '900', color: B }}>{CO.badge}</span>
+          <td style={{ width: '16mm', verticalAlign: 'middle' }}>
+            <div style={{ width: '15mm', height: '15mm', border: `2px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
+              <div style={{ width: '11mm', height: '11mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: '900', color: B }}>{CO.badge}</span>
               </div>
             </div>
           </td>
-          <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0 4mm' }}>
-            <div style={{ fontSize: '40px', fontWeight: '900', color: B, letterSpacing: '0.5px', lineHeight: 1.1 }}>{CO.name}</div>
-            <div style={{ fontSize: '20px', fontWeight: '700', color: B, marginTop: '2mm', lineHeight: 1.3 }}>{CO.sub}</div>
-            <div style={{ fontSize: '18px', color: B, marginTop: '1.5mm' }}>
+          <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0 2mm' }}>
+            <div style={{ fontSize: '17px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
+            <div style={{ fontSize: '9px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
+            <div style={{ fontSize: '8px', color: B, marginTop: '0.8mm' }}>
               <span style={{ fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
             </div>
           </td>
-          <td style={{ width: '34mm' }} />
+          <td style={{ width: '16mm' }} />
         </tr></tbody>
       </table>
 
-      {/* Invoice number + title */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4mm' }}>
+      {/* Invoice number (left) + title (center) + phone numbers (right) */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
         <tbody><tr>
-          <td style={{ width: '65mm', verticalAlign: 'top', fontSize: '16px' }}>
-            <div style={{ marginBottom: '2mm' }}>
+          <td style={{ width: '28mm', verticalAlign: 'top', fontSize: '8px' }}>
+            <div>
               <b>N°:&nbsp;</b>
-              <span style={{ borderBottom: `2px solid ${B}`, fontWeight: '700', paddingBottom: '0.5mm' }}>{invoice.invoiceNumber}</span>
+              <span style={{ borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
             </div>
-            <div style={{ fontSize : '20px'}}><b>Tel:</b>&nbsp;{CO.tel1}</div>
-            <div style={{ fontSize : '20px'}}>📱&nbsp;{CO.tel2}</div>
-            <div style={{ fontSize : '20px'}}>📱&nbsp;{CO.tel3}</div>
           </td>
           <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-            <div style={{ fontSize: '30px', fontWeight: '900', color: B, letterSpacing: '1px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
-            <div style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '6px', color: B, marginTop: '2mm' }}>INVOICE</div>
+            <div style={{ fontSize: '14px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
+            <div style={{ fontSize: '7px', fontWeight: '700', letterSpacing: '2px', color: B, marginTop: '1mm' }}>INVOICE</div>
           </td>
-          <td style={{ width: '65mm' }} />
+          <td style={{ width: '28mm', verticalAlign: 'top', textAlign: 'right', fontSize: '8px', lineHeight: 1.5 }}>
+            <div><b>Tel:</b>&nbsp;{CO.tel1}</div>
+            <div>📱&nbsp;{CO.tel2}</div>
+            <div>📱&nbsp;{CO.tel3}</div>
+          </td>
         </tr></tbody>
       </table>
 
       {/* Customer row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `2.5px solid ${B}`, paddingBottom: '2.5mm', fontSize: '14px', flexWrap: 'wrap', gap: '2mm' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `1.5px solid ${B}`, paddingBottom: '1.5mm', fontSize: '8px', flexWrap: 'wrap', gap: '1mm' }}>
         <div style={{ flex: 1 }}>
-          <span style={{ fontWeight: '900' ,marginBottom :'30px'}}>អតិថិជន:&nbsp;</span>
-          <span style={{ display: 'inline-block', minWidth: '80mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
-          {phone && <span style={{ marginLeft: '4mm' }}>📞&nbsp;{phone}</span>}
+          <span style={{ fontWeight: '900' }}>អតិថិជន:&nbsp;</span>
+          <span style={{ display: 'inline-block', minWidth: '40mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
+          {phone && <span style={{ marginLeft: '2mm' }}>📞&nbsp;{phone}</span>}
         </div>
-        <div style={{ whiteSpace: 'nowrap', fontSize: '14px' }}>
-          ថ្ងៃ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '10mm', display: 'inline-block', textAlign: 'center' }}>{day}</span>
-          &thinsp;ខែ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '10mm', display: 'inline-block', textAlign: 'center' }}>{month}</span>
-          &thinsp;ឆ្នាំ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '16mm', display: 'inline-block', textAlign: 'center' }}>{year}</span>
+        <div style={{ whiteSpace: 'nowrap', fontSize: '8px' }}>
+          ថ្ងៃ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{day}</span>
+          &thinsp;ខែ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{month}</span>
+          &thinsp;ឆ្នាំ&thinsp;<span style={{ borderBottom: `1px solid ${B}`, minWidth: '8mm', display: 'inline-block', textAlign: 'center' }}>{year}</span>
         </div>
       </div>
 
@@ -176,11 +189,11 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: B }}>
-            <th style={{ ...TH, width: '12mm' }}>{'លរ\nNo'}</th>
+            <th style={{ ...TH, width: '8mm' }}>{'លរ\nNo'}</th>
             <th style={{ ...TH }}>{'បរិយាយ\nDescription'}</th>
-            <th style={{ ...TH, width: '24mm' }}>{'ចំនួន\nQty'}</th>
-            <th style={{ ...TH, width: '38mm' }}>{'តម្លៃ\nUnit Price'}</th>
-            <th style={{ ...TH, width: '44mm' }}>{'តម្លៃសរុប\nAmount'}</th>
+            <th style={{ ...TH, width: '14mm' }}>{'ចំនួន\nQty'}</th>
+            <th style={{ ...TH, width: '20mm' }}>{'តម្លៃ\nUnit Price'}</th>
+            <th style={{ ...TH, width: '24mm' }}>{'តម្លៃសរុប\nAmount'}</th>
           </tr>
         </thead>
         <tbody>
@@ -193,7 +206,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                   {item
                     ? <><span style={{ fontWeight: '600' }}>{item.brand ? ` ${item.brand}` : item.brand}</span>
                         {item.unitValue ? <span style={{ color: '#777' }}> ({item.unitValue}{item.unit})</span> : ''}
-                        {isBoth && <span style={{ color: '#999', fontSize: '11px' }}> [{itemCurrency}]</span>}</>
+                        {isBoth && <span style={{ color: '#999', fontSize: '7px' }}> [{itemCurrency}]</span>}</>
                     : <>&nbsp;</>}
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>{item ? item.quantity : ''}</td>
@@ -209,28 +222,28 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           signatures, and notes aren't repeated on every page. Earlier pages
           just end after the items table. */}
       {showTotals && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: `2.5px solid ${B}` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: `1.5px solid ${B}` }}>
           <tbody><tr>
             {/* Left: note + signatures */}
-            <td style={{ border: `1.5px solid ${B}`, padding: '4mm', width: '57%', verticalAlign: 'top' }}>
-              <div style={{ fontSize: '15px', lineHeight: 1.7, marginBottom: '6mm', fontWeight: '500' }}>
-                <b style={{ fontSize: '16px' }}>*ចំណាំ:</b> ទំនិញដែលបានទិញរួចហើយ មិនអាចប្ដូរយកប្រាក់វិញបានទេ។
+            <td style={{ border: `1px solid ${B}`, padding: '2mm', width: '55%', verticalAlign: 'top' }}>
+              <div style={{ fontSize: '8px', lineHeight: 1.4, marginBottom: '3mm', fontWeight: '500' }}>
+                <b style={{ fontSize: '9px' }}>*ចំណាំ:</b> ទំនិញដែលបានទិញរួចហើយ មិនអាចប្ដូរយកប្រាក់វិញបានទេ។
                 {invoice.note && (
-                  <div style={{ marginTop: '2mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
+                  <div style={{ marginTop: '1mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
                 )}
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <tbody><tr>
-                  <td style={{ width: '50%', textAlign: 'center', paddingRight: '4mm' }}>
-                    <div style={{ borderTop: `1.5px solid ${B}`, paddingTop: '2.5mm', marginTop: '20mm' }}>
-                      <div style={{ fontWeight: '800', color: B, fontSize: '16px' }}>ហត្ថលេខាអ្នកទិញ</div>
-                      <div style={{ color: '#777', fontSize: '13px', marginTop: '1mm' }}>Buyer Signature</div>
+                  <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
+                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '8mm' }}>
+                      <div style={{ fontWeight: '800', color: B, fontSize: '9px' }}>ហត្ថលេខាអ្នកទិញ</div>
+                      <div style={{ color: '#777', fontSize: '7px', marginTop: '0.5mm' }}>Buyer Signature</div>
                     </div>
                   </td>
-                  <td style={{ width: '50%', textAlign: 'center', paddingLeft: '4mm' }}>
-                    <div style={{ borderTop: `1.5px solid ${B}`, paddingTop: '2.5mm', marginTop: '20mm' }}>
-                      <div style={{ fontWeight: '800', color: B, fontSize: '16px' }}>ហត្ថលេខាអ្នកលក់</div>
-                      <div style={{ color: '#777', fontSize: '13px', marginTop: '1mm' }}>Seller Signature</div>
+                  <td style={{ width: '50%', textAlign: 'center', paddingLeft: '2mm' }}>
+                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '8mm' }}>
+                      <div style={{ fontWeight: '800', color: B, fontSize: '9px' }}>ហត្ថលេខាអ្នកលក់</div>
+                      <div style={{ color: '#777', fontSize: '7px', marginTop: '0.5mm' }}>Seller Signature</div>
                     </div>
                   </td>
                 </tr></tbody>
@@ -238,46 +251,46 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
             </td>
 
             {/* Right: totals */}
-            <td style={{ border: `1.5px solid ${B}`, padding: 0, verticalAlign: 'top' }}>
+            <td style={{ border: `1px solid ${B}`, padding: 0, verticalAlign: 'top' }}>
               {isBoth ? (
                 // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $) ──
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
                   <tbody>
                     {/* Subtotal + discount — only if discount exists */}
                     {(invoice.discountAmountKHR > 0 || invoice.discountAmountUSD > 0) && (<>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '3mm 4mm', fontWeight: '600', fontSize: '13px', color: '#555', borderRight: `1px solid ${B}` }}>សរុបរង</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right', fontSize: '12px', color: '#555', borderRight: `1px dashed ${B}` }}>{invoice.subtotalKHR > 0 ? fmtKHR(invoice.subtotalKHR) : '—'}</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right', fontSize: '12px', color: '#555' }}>{invoice.subtotalUSD > 0 ? fmtUSD(invoice.subtotalUSD) : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', fontWeight: '600', fontSize: '7px', color: '#555', borderRight: `1px solid ${B}` }}>សរុបរង</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '7px', color: '#555', borderRight: `1px dashed ${B}` }}>{invoice.subtotalKHR > 0 ? fmtKHR(invoice.subtotalKHR) : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '7px', color: '#555' }}>{invoice.subtotalUSD > 0 ? fmtUSD(invoice.subtotalUSD) : '—'}</td>
                       </tr>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '3mm 4mm', color: 'red', fontSize: '13px', borderRight: `1px solid ${B}` }}>បញ្ចុះ</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right', color: 'red', fontSize: '12px', borderRight: `1px dashed ${B}` }}>{invoice.discountAmountKHR > 0 ? `−${fmtKHR(invoice.discountAmountKHR)}` : '—'}</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right', color: 'red', fontSize: '12px' }}>{invoice.discountAmountUSD > 0 ? `−${fmtUSD(invoice.discountAmountUSD)}` : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', color: 'red', fontSize: '7px', borderRight: `1px solid ${B}` }}>បញ្ចុះ</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '7px', borderRight: `1px dashed ${B}` }}>{invoice.discountAmountKHR > 0 ? `−${fmtKHR(invoice.discountAmountKHR)}` : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '7px' }}>{invoice.discountAmountUSD > 0 ? `−${fmtUSD(invoice.discountAmountUSD)}` : '—'}</td>
                       </tr>
                     </>)}
 
                     {/* Currency header sub-row */}
                     <tr style={{ background: LB, borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '2mm 4mm', borderRight: `1px solid ${B}` }}></td>
-                      <td style={{ padding: '2mm 4mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px', borderRight: `1px dashed ${B}` }}>៛ រៀល</td>
-                      <td style={{ padding: '2mm 4mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px' }}>$ ដុល្លារ</td>
+                      <td style={{ padding: '1mm 2mm', borderRight: `1px solid ${B}` }}></td>
+                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '7px', borderRight: `1px dashed ${B}` }}>៛ រៀល</td>
+                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '7px' }}>$ ដុល្លារ</td>
                     </tr>
 
                     {/* Total row */}
                     <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
-                      <td style={{ padding: '4mm', fontWeight: '900', fontSize: '17px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '16px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '16px', color: B }}>{fmtUSD(totalUSD)}</td>
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '11px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px', color: B }}>{fmtUSD(totalUSD)}</td>
                     </tr>
 
                     {/* Deposit row */}
                     <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
+                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '9px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
                         {depositKHR > 0 ? `−${fmtKHR(depositKHR)}` : '—'}
                       </td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
                         {depositUSD > 0 ? `−${fmtUSD(depositUSD)}` : '—'}
                       </td>
                     </tr>
@@ -285,12 +298,12 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                     {/* Balance row — hidden entirely when fully paid with no deposit */}
                     {(!isPaid || hasDepositBoth) && (
                       <tr>
-                        <td style={{ padding: '4mm', fontWeight: '900', fontSize: '18px', color: B, borderRight: `1px solid ${B}` }}>នៅខ្វះ/BALANCE</td>
-                        <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '17px', borderRight: `1px dashed ${B}`,
+                        <td style={{ padding: '2mm', fontWeight: '900', fontSize: '10px', color: B, borderRight: `1px solid ${B}` }}>នៅខ្វះ/BALANCE</td>
+                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '9px', borderRight: `1px dashed ${B}`,
                           color: remainingKHR === 0 ? '#1a7a3a' : 'red' }}>
                           {remainingKHR === 0 ? '✓ បានបង់ពេញ' : fmtKHR(remainingKHR)}
                         </td>
-                        <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '17px',
+                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '9px',
                           color: remainingUSD === 0 ? '#1a7a3a' : 'red' }}>
                           {remainingUSD === 0 ? '✓ បានបង់ពេញ' : fmtUSD(remainingUSD)}
                         </td>
@@ -300,36 +313,36 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 </table>
               ) : (
                 // ── SINGLE-CURRENCY totals ──
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
                   <tbody>
                     {invoice.discountAmount > 0 && (<>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '3mm 4mm', fontWeight: '600' }}>សរុបរង</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right' }}>{fmtByCurrency(invoice.subtotal, invoice.currency)}</td>
+                        <td style={{ padding: '1.5mm 2mm', fontWeight: '600' }}>សរុបរង</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right' }}>{fmtByCurrency(invoice.subtotal, invoice.currency)}</td>
                       </tr>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '3mm 4mm', color: 'red' }}>បញ្ចុះ</td>
-                        <td style={{ padding: '3mm 4mm', textAlign: 'right', color: 'red' }}>-{fmtByCurrency(invoice.discountAmount, invoice.currency)}</td>
+                        <td style={{ padding: '1.5mm 2mm', color: 'red' }}>បញ្ចុះ</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red' }}>-{fmtByCurrency(invoice.discountAmount, invoice.currency)}</td>
                       </tr>
                     </>)}
 
                     <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
-                      <td style={{ padding: '4mm', fontWeight: '900', fontSize: '17px', color: B }}>សរុប/TOTAL</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '17px', color: B }}>{fmtByCurrency(totalAmt, invoice.currency)}</td>
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '11px', color: B }}>សរុប/TOTAL</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '11px', color: B }}>{fmtByCurrency(totalAmt, invoice.currency)}</td>
                     </tr>
 
                     {/* Deposit row */}
                     <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '4mm', fontWeight: '700', fontSize: '15px' }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a' }}>
+                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '9px' }}>កក់មុន/DEPOSIT</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a' }}>
                         {hasDeposit && ("-"+fmtByCurrency(depositAmt, invoice.currency))}
                       </td>
                     </tr>
 
                     {/* Balance row — hidden entirely when fully paid with no deposit */}
                     <tr>
-                      <td style={{ padding: '4mm', fontWeight: '900', fontSize: '18px', color: B }}>នៅខ្វះ/BALANCE</td>
-                      <td style={{ padding: '4mm', textAlign: 'right', fontWeight: '900', fontSize: '18px',
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '10px', color: B }}>នៅខ្វះ/BALANCE</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px',
                         color: balanceSingle === 0 ? '#1a7a3a' : 'red' }}>
                       {(!isPaid || hasDeposit) && (
                         balanceSingle === 0
@@ -505,7 +518,7 @@ export default function InvoiceDetail() {
     : (!isCancelled && !isFullyPaid)
   const canMarkNotPaid = !isCancelled && !isPending
 
-  // ── Split items into 15-row pages, once per render. Both the customer copy
+  // ── Split items into pages, once per render. Both the customer copy
   //    and the shop copy walk the same chunks so page counts always match. ──
   const itemChunks = chunkItems(invoice?.items, ROWS_PER_PAGE)
   const lastPageIdx = itemChunks.length - 1
@@ -549,12 +562,20 @@ export default function InvoiceDetail() {
         <button onClick={handlePrint} className="btn-primary text-sm">🖨️ បោះពុម្ព / PDF</button>
       </div>
 
+      {/* Reminder: the URL/date/page-number line at the bottom of a printed page
+          comes from the browser itself, not this app — turn it off in the print
+          dialog under "More settings" → uncheck "Headers and footers". */}
+      <p className="no-print text-xs text-gray-400">
+        ℹ️ បើមានអក្សរ URL/កាលបរិច្ឆេទនៅផ្នែកខាងក្រោមក្រដាស នោះជា header/footer លំនាំដើមរបស់ browser —
+        សូមទៅកាន់ dialog បោះពុម្ព → "More settings" → ដកធីក "Headers and footers"។
+      </p>
+
       {/* Printable invoice */}
       <div style={{ overflowX: 'auto' }}>
         <div id="inv-print" ref={printRef} style={{
           fontFamily: "'Khmer OS Battambang','Hanuman','Noto Sans Khmer',sans-serif",
-          color: B, background: '#fff', width: '297mm', margin: '0 auto',
-          boxSizing: 'border-box', fontSize: '15px', lineHeight: 1.4,
+          color: B, background: '#fff', width: '148mm', margin: '0 auto',
+          boxSizing: 'border-box', fontSize: '9px', lineHeight: 1.4,
           boxShadow: '0 4px 32px rgba(0,0,0,0.12)', overflow: 'visible',
         }}>
           {/* Customer copy — always shown on screen, page-broken after every
