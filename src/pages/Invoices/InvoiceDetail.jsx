@@ -124,9 +124,8 @@ const TH = {
   fontSize: '24px',
 }
 const TD = {
-  padding: '5mm 2mm',
+  padding: '2mm 2mm',
   border: `1px solid ${B}`,
-  height: '14mm',
   fontSize: '22px',
 }
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
@@ -203,7 +202,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
         <tbody><tr>
           <td style={{ width: '19mm', verticalAlign: 'middle' }}>
             <div style={{ width: '18mm', height: '18mm', border: `2.5px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
-              <div style={{ width: '13mm', height: '13mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '15mm', height: '15mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: '25px', fontWeight: '900', color: B }}>{CO.badge}</span>
               </div>
             </div>
@@ -212,7 +211,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
             <div style={{ fontSize: '30px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
             <div style={{ fontSize: '15px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
             <div style={{ fontSize: '14px', color: B, marginTop: '0.8mm' }}>
-              <span style={{fontSize: '13px', fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
+              <span style={{fontSize: '15px', fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
             </div>
           </td>
           <td style={{ width: '19mm' }} />
@@ -224,12 +223,12 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
         <tbody><tr>
           <td style={{ width: '40mm', verticalAlign: 'top', fontSize: '8px' }}>
             <div>
-              <b>N°:&nbsp;</b>
-              <span style={{fontSize: '14px', borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
+              <b style={{fontSize: '14px'}}>N°:&nbsp;</b>
+              <span style={{fontSize: '17px', borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
             </div>
           </td>
           <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
+            <div style={{ fontSize: '25px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
             <div style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '2px', color: B, marginTop: '1mm' }}>INVOICE</div>
           </td>
           <td style={{ width: '50mm', verticalAlign: 'top', textAlign: 'right', fontSize: '20px', lineHeight: 1.6, fontWeight: '600' }}>
@@ -243,11 +242,11 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       {/* Customer row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `1.5px solid ${B}`, paddingBottom: '1.5mm', fontSize: '15px', flexWrap: 'wrap', gap: '1mm' }}>
         <div style={{ flex: 1 }}>
-          <span style={{fontSize: '15px', fontWeight: '900' }}>អតិថិជន:&nbsp;</span>
-          <span style={{fontSize: '15px', display: 'inline-block', minWidth: '40mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
+          <span style={{fontSize: '20px', fontWeight: '900' }}>អតិថិជន:&nbsp;</span>
+          <span style={{fontSize: '20px', display: 'inline-block', minWidth: '40mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
           {phone && <span style={{ marginLeft: '2mm' }}>📞&nbsp;{phone}</span>}
         </div>
-        <div style={{ whiteSpace: 'nowrap', fontSize: '8px' }}>
+        <div style={{ whiteSpace: 'nowrap', fontSize: '15px' }}>
           ថ្ងៃ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{day}</span>
           &thinsp;ខែ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{month}</span>
           &thinsp;ឆ្នាំ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '8mm', display: 'inline-block', textAlign: 'center' }}>{year}</span>
@@ -260,7 +259,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           <tr style={{ background: B }}>
             <th style={{ ...TH, width: '15mm' }}>{'លរ'}</th>
             <th style={{ ...TH }}>{'ទំនិញ'}</th>
-            <th style={{ ...TH, width: '15mm' }}>{'ចំនួន'}</th>
+            <th style={{ ...TH, width: '30mm' }}>{'ចំនួន'}</th>
             <th style={{ ...TH, width: '30mm' }}>{'តម្លៃរាយ'}</th>
             <th style={{ ...TH, width: '50mm' }}>{'តម្លៃសរុប'}</th>
           </tr>
