@@ -316,7 +316,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                   <div style={{ marginTop: '1mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
                 )}
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse',height:'109px'}}>
+              <table style={{ width: '100%', borderCollapse: 'collapse',height:'105px'}}>
                 <tbody><tr style={{  paddingTop: '1.5mm',
   marginTop: '20mm'}}>
                   <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
