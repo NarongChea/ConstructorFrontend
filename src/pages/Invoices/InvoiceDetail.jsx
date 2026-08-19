@@ -307,8 +307,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           just end after the items table. */}
       {showTotals && (
         <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: `1.5px solid ${B}` }}>
-          <tbody><tr style={{  paddingTop: '1.5mm',
-  marginTop: '20mm'}}>
+          <tbody><tr >
             {/* Left: note + signatures */}
             <td style={{ border: `1px solid ${B}`, padding: '2mm', width: '55%', verticalAlign: 'top' }}>
               <div style={{ fontSize: '16px', lineHeight: 1.4, marginBottom: '3mm', fontWeight: '500' }}>
@@ -318,7 +317,8 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 )}
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody><tr >
+                <tbody><tr style={{  paddingTop: '1.5mm',
+  marginTop: '20mm'}}>
                   <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
                     <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '8mm' }}>
                       <div style={{ fontWeight: '800', color: B, fontSize: '15px' }}>ហត្ថលេខាអ្នកទិញ</div>
