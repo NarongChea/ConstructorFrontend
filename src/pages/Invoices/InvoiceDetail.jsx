@@ -221,7 +221,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       {/* Invoice number (left) + title (center) + phone numbers (right) */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
         <tbody><tr>
-          <td style={{ width: '40mm', verticalAlign: 'top', fontSize: '8px' }}>
+          <td style={{ width: '50mm', verticalAlign: 'top', fontSize: '8px' }}>
             <div>
               <b style={{fontSize: '14px'}}>N°:&nbsp;</b>
               <span style={{fontSize: '17px', borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
@@ -316,7 +316,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                   <div style={{ marginTop: '1mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
                 )}
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse',height:'200px'}}>
                 <tbody><tr style={{  paddingTop: '1.5mm',
   marginTop: '20mm'}}>
                   <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
@@ -338,7 +338,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
               {isBoth ? (
                 // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $) ──
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                  <tbody>
+                  <tbody style={{display : 'flex',flexDirection : 'column'}}>
                     {/* Subtotal + discount — only if discount exists */}
                     {(invoice.discountAmountKHR > 0 || invoice.discountAmountUSD > 0) && (<>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
