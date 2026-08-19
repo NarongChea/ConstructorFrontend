@@ -114,20 +114,20 @@ const CO = {
 }
 
 const TH = {
-  padding: '2.5mm 1.5mm',
+  padding: '4mm 2mm',
   border: `1px solid ${B}`,
   fontWeight: '700',
   textAlign: 'center',
   whiteSpace: 'pre-line',
   lineHeight: 1.2,
   color: '#fff',
-  fontSize: '12px',
+  fontSize: '24px',
 }
 const TD = {
-  padding: '2.5mm 1.5mm',
+  padding: '5mm 2mm',
   border: `1px solid ${B}`,
-  height: '11mm',
-  fontSize: '12px',
+  height: '20mm',
+  fontSize: '24px',
 }
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
