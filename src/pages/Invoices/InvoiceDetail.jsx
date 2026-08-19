@@ -23,9 +23,9 @@ import { sendOrderToTelegram } from '../../utils/telegram.js'
 //    printing/saving as PDF. ──
 const PAGE_W   = '210mm'
 const PAGE_H   = '297mm'
-const PAGE_MARGIN = '2mm'
-const USABLE_W = '206mm'
-const USABLE_H = '293mm'
+const PAGE_MARGIN = '0mm'
+const USABLE_W = '210mm'
+const USABLE_H = '297mm'
 
 const PRINT_STYLE = `
 @page {
@@ -126,8 +126,9 @@ const TH = {
 const TD = {
   padding: '5mm 2mm',
   border: `1px solid ${B}`,
-  height: '20mm',
-  fontSize: '24px',
+  // height: '15mm',
+  height:'auto',
+  fontSize: '26px',
 }
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
@@ -204,15 +205,15 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           <td style={{ width: '19mm', verticalAlign: 'middle' }}>
             <div style={{ width: '18mm', height: '18mm', border: `2.5px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
               <div style={{ width: '13mm', height: '13mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '16px', fontWeight: '900', color: B }}>{CO.badge}</span>
+                <span style={{ fontSize: '25px', fontWeight: '900', color: B }}>{CO.badge}</span>
               </div>
             </div>
           </td>
           <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0 2mm' }}>
-            <div style={{ fontSize: '21px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
-            <div style={{ fontSize: '10.5px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
-            <div style={{ fontSize: '9px', color: B, marginTop: '0.8mm' }}>
-              <span style={{ fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
+            <div style={{ fontSize: '30px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
+            <div style={{ fontSize: '14px', color: B, marginTop: '0.8mm' }}>
+              <span style={{fontSize: '13px', fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
             </div>
           </td>
           <td style={{ width: '19mm' }} />
@@ -225,14 +226,14 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           <td style={{ width: '28mm', verticalAlign: 'top', fontSize: '8px' }}>
             <div>
               <b>N°:&nbsp;</b>
-              <span style={{ borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
+              <span style={{fontSize: '14px', borderBottom: `1px solid ${B}`, fontWeight: '700', paddingBottom: '0.3mm' }}>{invoice.invoiceNumber}</span>
             </div>
           </td>
           <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-            <div style={{ fontSize: '14px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
-            <div style={{ fontSize: '7px', fontWeight: '700', letterSpacing: '2px', color: B, marginTop: '1mm' }}>INVOICE</div>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
+            <div style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '2px', color: B, marginTop: '1mm' }}>INVOICE</div>
           </td>
-          <td style={{ width: '30mm', verticalAlign: 'top', textAlign: 'right', fontSize: '10px', lineHeight: 1.6, fontWeight: '600' }}>
+          <td style={{ width: '30mm', verticalAlign: 'top', textAlign: 'right', fontSize: '20px', lineHeight: 1.6, fontWeight: '600' }}>
             <div><b>Tel:</b>&nbsp;{CO.tel1}</div>
             <div>📱&nbsp;{CO.tel2}</div>
             <div>📱&nbsp;{CO.tel3}</div>
@@ -241,7 +242,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       </table>
 
       {/* Customer row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `1.5px solid ${B}`, paddingBottom: '1.5mm', fontSize: '8px', flexWrap: 'wrap', gap: '1mm' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `1.5px solid ${B}`, paddingBottom: '1.5mm', fontSize: '15px', flexWrap: 'wrap', gap: '1mm' }}>
         <div style={{ flex: 1 }}>
           <span style={{ fontWeight: '900' }}>អតិថិជន:&nbsp;</span>
           <span style={{ display: 'inline-block', minWidth: '40mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
@@ -258,11 +259,11 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr style={{ background: B }}>
-            <th style={{ ...TH, width: '8mm' }}>{'លរ\nNo'}</th>
+            <th style={{ ...TH, width: '15mm' }}>{'លរ\nNo'}</th>
             <th style={{ ...TH }}>{'បរិយាយ\nDescription'}</th>
-            <th style={{ ...TH, width: '14mm' }}>{'ចំនួន\nQty'}</th>
-            <th style={{ ...TH, width: '20mm' }}>{'តម្លៃ\nUnit Price'}</th>
-            <th style={{ ...TH, width: '24mm' }}>{'តម្លៃសរុប\nAmount'}</th>
+            <th style={{ ...TH, width: '25mm' }}>{'ចំនួន\nQty'}</th>
+            <th style={{ ...TH, width: '30mm' }}>{'តម្លៃ\nUnit Price'}</th>
+            <th style={{ ...TH, width: '40mm' }}>{'តម្លៃសរុប\nAmount'}</th>
           </tr>
         </thead>
         <tbody>
@@ -312,7 +313,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
             {/* Left: note + signatures */}
             <td style={{ border: `1px solid ${B}`, padding: '2mm', width: '55%', verticalAlign: 'top' }}>
               <div style={{ fontSize: '8px', lineHeight: 1.4, marginBottom: '3mm', fontWeight: '500' }}>
-                <b style={{ fontSize: '9px' }}>*ចំណាំ:</b> ទំនិញដែលបានទិញរួចហើយ មិនអាចប្ដូរយកប្រាក់វិញបានទេ។
+                <b style={{ fontSize: '16px' }}>*ចំណាំ:</b> ទំនិញដែលបានទិញរួចហើយ មិនអាចប្ដូរយកប្រាក់វិញបានទេ។
                 {invoice.note && (
                   <div style={{ marginTop: '1mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
                 )}
@@ -321,14 +322,14 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 <tbody><tr>
                   <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
                     <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '8mm' }}>
-                      <div style={{ fontWeight: '800', color: B, fontSize: '9px' }}>ហត្ថលេខាអ្នកទិញ</div>
-                      <div style={{ color: '#777', fontSize: '7px', marginTop: '0.5mm' }}>Buyer Signature</div>
+                      <div style={{ fontWeight: '800', color: B, fontSize: '15px' }}>ហត្ថលេខាអ្នកទិញ</div>
+                      <div style={{ color: '#777', fontSize: '14px', marginTop: '0.5mm' }}>Buyer Signature</div>
                     </div>
                   </td>
                   <td style={{ width: '50%', textAlign: 'center', paddingLeft: '2mm' }}>
                     <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '8mm' }}>
-                      <div style={{ fontWeight: '800', color: B, fontSize: '9px' }}>ហត្ថលេខាអ្នកលក់</div>
-                      <div style={{ color: '#777', fontSize: '7px', marginTop: '0.5mm' }}>Seller Signature</div>
+                      <div style={{ fontWeight: '800', color: B, fontSize: '15px' }}>ហត្ថលេខាអ្នកលក់</div>
+                      <div style={{ color: '#777', fontSize: '14px', marginTop: '0.5mm' }}>Seller Signature</div>
                     </div>
                   </td>
                 </tr></tbody>
@@ -339,7 +340,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
             <td style={{ border: `1px solid ${B}`, padding: 0, verticalAlign: 'top' }}>
               {isBoth ? (
                 // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $) ──
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <tbody>
                     {/* Subtotal + discount — only if discount exists */}
                     {(invoice.discountAmountKHR > 0 || invoice.discountAmountUSD > 0) && (<>
