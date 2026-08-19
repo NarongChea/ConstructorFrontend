@@ -320,12 +320,12 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 <tbody><tr style={{  paddingTop: '1.5mm',
   marginTop: '20mm'}}>
                   <td style={{ width: '50%', textAlign: 'center', paddingRight: '2mm' }}>
-                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '2.5mm', marginTop: '8mm' }}>
+                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '15mm' }}>
                       <div style={{ fontWeight: '800', color: B, fontSize: '15px' }}>ហត្ថលេខាអ្នកទិញ</div>
                     </div>
                   </td>
                   <td style={{ width: '50%', textAlign: 'center', paddingLeft: '2mm' }}>
-                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '2.5mm', marginTop: '8mm' }}>
+                    <div style={{ borderTop: `1px solid ${B}`, paddingTop: '1.5mm', marginTop: '15mm' }}>
                       <div style={{ fontWeight: '800', color: B, fontSize: '15px' }}>ហត្ថលេខាអ្នកលក់</div>
                     </div>
                   </td>
