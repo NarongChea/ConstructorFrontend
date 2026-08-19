@@ -104,7 +104,7 @@ const LB = '#ffffff'
 //    numbering (No column) keeps counting across pages via `startIndex`;
 //    totals/footer only render on the LAST page of each copy so the total
 //    isn't printed multiple times. ──
-const ROWS_PER_PAGE = 15
+const ROWS_PER_PAGE = 14
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
@@ -246,10 +246,10 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           <span style={{fontSize: '20px', display: 'inline-block', minWidth: '40mm', borderBottom: `1px dotted ${B}`, paddingBottom: '0.3mm' }}>{cust}</span>
           {phone && <span style={{ marginLeft: '2mm' }}>📞&nbsp;{phone}</span>}
         </div>
-        <div style={{ whiteSpace: 'nowrap', fontSize: '15px' }}>
-          ថ្ងៃ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{day}</span>
-          &thinsp;ខែ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{month}</span>
-          &thinsp;ឆ្នាំ&thinsp;<span style={{fontSize: '15px', borderBottom: `1px solid ${B}`, minWidth: '8mm', display: 'inline-block', textAlign: 'center' }}>{year}</span>
+        <div style={{ whiteSpace: 'nowrap', fontSize: '19px' }}>
+          ថ្ងៃ&thinsp;<span style={{fontSize: '19px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{day}</span>
+          &thinsp;ខែ&thinsp;<span style={{fontSize: '19px', borderBottom: `1px solid ${B}`, minWidth: '5mm', display: 'inline-block', textAlign: 'center' }}>{month}</span>
+          &thinsp;ឆ្នាំ&thinsp;<span style={{fontSize: '19px', borderBottom: `1px solid ${B}`, minWidth: '8mm', display: 'inline-block', textAlign: 'center' }}>{year}</span>
         </div>
       </div>
 
@@ -363,9 +363,9 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
 
                     {/* Total row */}
                     <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
-                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '11px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px', color: B }}>{fmtUSD(totalUSD)}</td>
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '15px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '15px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '15px', color: B }}>{fmtUSD(totalUSD)}</td>
                     </tr>
 
                     {/* Deposit row */}
