@@ -310,7 +310,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           <tbody><tr>
             {/* Left: note + signatures */}
             <td style={{ border: `1px solid ${B}`, padding: '2mm', width: '55%', verticalAlign: 'top' }}>
-              <div style={{ fontSize: '8px', lineHeight: 1.4, marginBottom: '3mm', fontWeight: '500' }}>
+              <div style={{ fontSize: '16px', lineHeight: 1.4, marginBottom: '3mm', fontWeight: '500' }}>
                 <b style={{ fontSize: '16px' }}>*ចំណាំ:</b> ទំនិញដែលបានទិញរួចហើយ មិនអាចប្ដូរយកប្រាក់វិញបានទេ។
                 {invoice.note && (
                   <div style={{ marginTop: '1mm', fontStyle: 'italic', color: '#333' }}>📝 {invoice.note}</div>
@@ -363,18 +363,18 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
 
                     {/* Total row */}
                     <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
-                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '15px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '15px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '15px', color: B }}>{fmtUSD(totalUSD)}</td>
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '20px', color: B, borderRight: `1px solid ${B}` }}>សរុប/TOTAL</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px', color: B, borderRight: `1px dashed ${B}` }}>{fmtKHR(totalKHR)}</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px', color: B }}>{fmtUSD(totalUSD)}</td>
                     </tr>
 
                     {/* Deposit row */}
                     <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '9px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
+                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '20px', borderRight: `1px solid ${B}` }}>កក់មុន/DEPOSIT</td>
+                      <td style={{ padding: '2mm', textAlign: 'right',fontSize: '20px', fontWeight: '700', borderRight: `1px dashed ${B}`, color: depositKHR > 0 ? '#1a7a3a' : '#999' }}>
                         {depositKHR > 0 ? `−${fmtKHR(depositKHR)}` : '—'}
                       </td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
+                      <td style={{ padding: '2mm', textAlign: 'right',fontSize: '20px', fontWeight: '700', color: depositUSD > 0 ? '#1a7a3a' : '#999' }}>
                         {depositUSD > 0 ? `−${fmtUSD(depositUSD)}` : '—'}
                       </td>
                     </tr>
@@ -382,12 +382,12 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                     {/* Balance row — hidden entirely when fully paid with no deposit */}
                     {(!isPaid || hasDepositBoth) && (
                       <tr>
-                        <td style={{ padding: '2mm', fontWeight: '900', fontSize: '10px', color: B, borderRight: `1px solid ${B}` }}>នៅខ្វះ/BALANCE</td>
-                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '9px', borderRight: `1px dashed ${B}`,
+                        <td style={{ padding: '2mm', fontWeight: '900', fontSize: '20px', color: B, borderRight: `1px solid ${B}` }}>នៅខ្វះ/BALANCE</td>
+                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px', borderRight: `1px dashed ${B}`,
                           color: remainingKHR === 0 ? '#1a7a3a' : 'red' }}>
                           {remainingKHR === 0 ? '✓ បានបង់ពេញ' : fmtKHR(remainingKHR)}
                         </td>
-                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '9px',
+                        <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px',
                           color: remainingUSD === 0 ? '#1a7a3a' : 'red' }}>
                           {remainingUSD === 0 ? '✓ បានបង់ពេញ' : fmtUSD(remainingUSD)}
                         </td>
@@ -397,36 +397,36 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 </table>
               ) : (
                 // ── SINGLE-CURRENCY totals ──
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '20px', }}>
                   <tbody>
                     {invoice.discountAmount > 0 && (<>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '1.5mm 2mm', fontWeight: '600' }}>សរុបរង</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right' }}>{fmtByCurrency(invoice.subtotal, invoice.currency)}</td>
+                        <td style={{ padding: '1.5mm 2mm',fontSize: '20px', fontWeight: '600' }}>សរុបរង</td>
+                        <td style={{ padding: '1.5mm 2mm',fontSize: '20px', textAlign: 'right' }}>{fmtByCurrency(invoice.subtotal, invoice.currency)}</td>
                       </tr>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '1.5mm 2mm', color: 'red' }}>បញ្ចុះ</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red' }}>-{fmtByCurrency(invoice.discountAmount, invoice.currency)}</td>
+                        <td style={{ padding: '1.5mm 2mm',fontSize: '20px', color: 'red' }}>បញ្ចុះ</td>
+                        <td style={{ padding: '1.5mm 2mm',fontSize: '20px', textAlign: 'right', color: 'red' }}>-{fmtByCurrency(invoice.discountAmount, invoice.currency)}</td>
                       </tr>
                     </>)}
 
                     <tr style={{ borderBottom: `1px solid ${B}`, background: LB }}>
-                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '11px', color: B }}>សរុប/TOTAL</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '11px', color: B }}>{fmtByCurrency(totalAmt, invoice.currency)}</td>
+                      <td style={{ padding: '2mm', fontWeight: '900',fontSize: '20px', color: B }}>សរុប/TOTAL</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px', color: B }}>{fmtByCurrency(totalAmt, invoice.currency)}</td>
                     </tr>
 
                     {/* Deposit row */}
                     <tr style={{ borderBottom: `1px solid ${B}` }}>
-                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '9px' }}>កក់មុន/DEPOSIT</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a' }}>
+                      <td style={{ padding: '2mm', fontWeight: '700', fontSize: '20px' }}>កក់មុន/DEPOSIT</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '700', color: '#1a7a3a', fontSize: '20px'}}>
                         {hasDeposit && ("-"+fmtByCurrency(depositAmt, invoice.currency))}
                       </td>
                     </tr>
 
                     {/* Balance row — hidden entirely when fully paid with no deposit */}
                     <tr>
-                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '10px', color: B }}>នៅខ្វះ/BALANCE</td>
-                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '10px',
+                      <td style={{ padding: '2mm', fontWeight: '900', fontSize: '20px', color: B }}>នៅខ្វះ/BALANCE</td>
+                      <td style={{ padding: '2mm', textAlign: 'right', fontWeight: '900', fontSize: '20px',
                         color: balanceSingle === 0 ? '#1a7a3a' : 'red' }}>
                       {(!isPaid || hasDeposit) && (
                         balanceSingle === 0
