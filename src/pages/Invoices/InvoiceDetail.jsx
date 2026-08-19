@@ -8,21 +8,76 @@ import Modal from '../../components/UI/Modal.jsx'
 import ConfirmDialog from '../../components/UI/ConfirmDialog.jsx'
 import { sendOrderToTelegram } from '../../utils/telegram.js'
 
-// ── PAPER: A5 portrait (148mm x 210mm). Margin kept narrow (3mm) so the
-//    printout uses close to the full sheet. NOTE: the browser (Chrome/Edge/etc.)
-//    still adds its own header/footer line (URL + date + page number) at the
-//    top/bottom of the printed page — that is NOT controlled by this CSS.
-//    To remove it, in the print dialog open "More settings" and uncheck
-//    "Headers and footers" before printing/saving as PDF. ──
+// ── PAPER: A5 portrait, 148mm x 210mm, @page margin 3mm on every side.
+//    That means the browser's actual printable area is:
+//      usable width  = 148mm - 3mm - 3mm = 142mm
+//      usable height = 210mm - 3mm - 3mm = 204mm
+//    Everything below is sized against those 142mm / 204mm numbers — NOT
+//    against the full 148mm/210mm sheet — so the content sits fully inside
+//    the printable area with no reliance on "Fit to page" / scaling.
+//
+//    NOTE: the browser (Chrome/Edge/etc.) still adds its own header/footer
+//    line (URL + date + page number) at the top/bottom of the printed page —
+//    that is NOT controlled by this CSS. To remove it, in the print dialog
+//    open "More settings" and uncheck "Headers and footers" before
+//    printing/saving as PDF. ──
+const PAGE_W   = '148mm'
+const PAGE_H   = '210mm'
+const PAGE_MARGIN = '3mm'
+const USABLE_W = '142mm' // 148mm - 3mm - 3mm
+const USABLE_H = '204mm' // 210mm - 3mm - 3mm
+
 const PRINT_STYLE = `
+@page {
+  size: A5 portrait;
+  margin: ${PAGE_MARGIN};
+}
+
 @media print {
-  @page { size: A5 portrait; margin: 3mm; }
-  html, body { margin: 0 !important; padding: 0 !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: ${PAGE_W} !important;
+    height: ${PAGE_H} !important;
+  }
+
   body * { visibility: hidden !important; }
-  #inv-print, #inv-print * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  #inv-print { position: absolute !important; top: 0; left: 0; width: 100% !important; max-width: 148mm !important; }
+
+  #inv-print, #inv-print * { visibility: visible !important; }
+
+  /* #inv-print is positioned at the top-left of the page's printable area
+     (which already starts 3mm in from the physical edge, per @page margin
+     above) and is sized to exactly fill that printable area — never wider
+     than USABLE_W, so there is no horizontal overflow and no need for the
+     browser to scale/shrink anything. */
+  #inv-print {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: ${USABLE_W} !important;
+    max-width: ${USABLE_W} !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .inv-page {
+    width: 100% !important;
+    max-width: ${USABLE_W} !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
   .no-print   { display: none !important; }
   .print-only { display: block !important; }
+
+  /* Keep the footer (totals / signatures) from being split across a page
+     break — it only ever renders on the last chunk of a copy anyway. */
   .page-copy  { page-break-inside: avoid; break-inside: avoid; }
 }
 `
@@ -33,15 +88,23 @@ const B  = '#1a2c8a'
 // every place that referenced LB now renders plain white instead of light blue.
 const LB = '#ffffff'
 
-// ── Max rows printed on a single physical page. A5 is much smaller than the
-//    old A3 layout, so this is far lower than before. Any invoice with more
-//    items than this gets split across multiple pages per copy (each copy —
-//    customer and shop — repeats this pagination). Row numbering (No column)
-//    keeps counting across pages via `startIndex`; totals/footer only render
-//    on the LAST page of each copy so the total isn't printed multiple times.
-//    If rows still overflow the page in your printer/PDF preview, lower this
-//    number further (try 6 or 7). ──
-const ROWS_PER_PAGE = 8
+// ── Max rows printed on a single physical page. Budgeted against the A5
+//    usable height (204mm) as follows, per copy/page:
+//      header block (logo + title + phone)   ≈ 38mm
+//      customer row                          ≈  9mm
+//      items table header                    ≈ 10mm
+//      15 item rows × 5.5mm                  ≈ 82.5mm
+//      totals + signatures footer (last pg)  ≈ 45mm
+//      page padding (top+bottom)             ≈  6mm
+//      ------------------------------------------------
+//      total                                 ≈ 190.5mm  (< 204mm usable)
+//    That leaves ~13mm of headroom. If your printer/PDF preview still shows
+//    overflow (e.g. a font substitution renders Khmer taller), lower this
+//    number first — try 12 or 13 — before touching anything else. Row
+//    numbering (No column) keeps counting across pages via `startIndex`;
+//    totals/footer only render on the LAST page of each copy so the total
+//    isn't printed multiple times. ──
+const ROWS_PER_PAGE = 15
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
@@ -119,7 +182,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
     : remainingAmt  // pending/partial = show what's owed
 
   return (
-    <div style={{ padding: '4mm 5mm', position: 'relative', boxSizing: 'border-box', background: '#fff' }}>
+    <div style={{ padding: '3mm 4mm', position: 'relative', boxSizing: 'border-box', width: '100%', background: '#fff' }}>
       <div style={{ position: 'absolute', top: '3mm', right: '4mm', fontSize: '7px', color: B, fontWeight: '700', opacity: 0.5 }}>
         {copyLabel}
         {pageInfo && pageInfo.total > 1 && (
@@ -186,7 +249,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       </div>
 
       {/* Items table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr style={{ background: B }}>
             <th style={{ ...TH, width: '8mm' }}>{'លរ\nNo'}</th>
@@ -204,10 +267,26 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
                 <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{item ? startIndex + i + 1 : ''}</td>
                 <td style={{ ...TD }}>
                   {item
-                    ? <><span style={{ fontWeight: '600' }}>{item.brand ? ` ${item.brand}` : item.brand}</span>
-                        {item.unitValue ? <span style={{ color: '#777' }}> ({item.unitValue}{item.unit})</span> : ''}
-                        {isBoth && <span style={{ color: '#999', fontSize: '7px' }}> [{itemCurrency}]</span>}</>
-                    : <>&nbsp;</>}
+  ? <>
+      {item.brand && (
+        <span style={{ fontWeight: '600' }}>
+          {item.brand}
+        </span>
+      )}
+
+      {item.unitValue ? (
+        <span style={{ color: '#777' }}>
+          ({item.unitValue}{item.unit})
+        </span>
+      ) : null}
+
+      {isBoth && (
+        <span style={{ color: '#999', fontSize: '7px' }}>
+          [{itemCurrency}]
+        </span>
+      )}
+    </>
+  : <>&nbsp;</>}
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>{item ? item.quantity : ''}</td>
                 <td style={{ ...TD, textAlign: 'right' }}>{item ? fmtByCurrency(item.unitPrice, itemCurrency) : ''}</td>
@@ -567,21 +646,34 @@ export default function InvoiceDetail() {
           dialog under "More settings" → uncheck "Headers and footers". */}
       <p className="no-print text-xs text-gray-400">
         ℹ️ បើមានអក្សរ URL/កាលបរិច្ឆេទនៅផ្នែកខាងក្រោមក្រដាស នោះជា header/footer លំនាំដើមរបស់ browser —
-        សូមទៅកាន់ dialog បោះពុម្ព → "More settings" → ដកធីក "Headers and footers"។
+        សូមទៅកាន់ dialog បោះពុម្ព → "More settings" → ដកធីក "Headers and footers"។ ជ្រើសរើស Paper size: A5, Scale: 100% (Actual Size)។
       </p>
 
-      {/* Printable invoice */}
+      {/* Printable invoice.
+          On screen this is shown at the full 148mm page width so it reads
+          as "a sheet of paper". In print, PRINT_STYLE above pins it to the
+          142mm printable area (148mm page − 3mm margin on each side), so
+          what you see in Print Preview at 100% scale / A5 is exactly what
+          prints — no "Fit to page" needed. */}
       <div style={{ overflowX: 'auto' }}>
         <div id="inv-print" ref={printRef} style={{
           fontFamily: "'Khmer OS Battambang','Hanuman','Noto Sans Khmer',sans-serif",
-          color: B, background: '#fff', width: '148mm', margin: '0 auto',
+          color: B, background: '#fff', width: PAGE_W, maxWidth: '100%', margin: '0 auto',
           boxSizing: 'border-box', fontSize: '9px', lineHeight: 1.4,
           boxShadow: '0 4px 32px rgba(0,0,0,0.12)', overflow: 'visible',
         }}>
           {/* Customer copy — always shown on screen, page-broken after every
               chunk (including the last one, so the shop copy starts clean). */}
           {itemChunks.map((chunk, i) => (
-            <div key={`cust-${i}`} style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>
+  <div
+    key={`cust-${i}`}
+    className="page-copy inv-page"
+    style={
+      i < lastPageIdx
+        ? { pageBreakAfter: 'always', breakAfter: 'page' }
+        : {}
+    }
+  >
               <InvoiceCopy
                 invoice={invoice}
                 items={chunk}
@@ -599,6 +691,7 @@ export default function InvoiceDetail() {
             {itemChunks.map((chunk, i) => (
               <div
                 key={`shop-${i}`}
+                className="page-copy inv-page"
                 style={i < lastPageIdx ? { pageBreakAfter: 'always', breakAfter: 'page' } : {}}
               >
                 <InvoiceCopy
