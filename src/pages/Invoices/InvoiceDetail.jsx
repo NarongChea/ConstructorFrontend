@@ -21,15 +21,15 @@ import { sendOrderToTelegram } from '../../utils/telegram.js'
 //    that is NOT controlled by this CSS. To remove it, in the print dialog
 //    open "More settings" and uncheck "Headers and footers" before
 //    printing/saving as PDF. ──
-const PAGE_W   = '148mm'
-const PAGE_H   = '210mm'
+const PAGE_W   = '210mm'
+const PAGE_H   = '297mm'
 const PAGE_MARGIN = '3mm'
-const USABLE_W = '142mm' // 148mm - 3mm - 3mm
-const USABLE_H = '204mm' // 210mm - 3mm - 3mm
+const USABLE_W = '204mm'
+const USABLE_H = '291mm'
 
 const PRINT_STYLE = `
 @page {
-  size: A5 portrait;
+  size: A4 portrait;
   margin: ${PAGE_MARGIN};
 }
 
@@ -114,15 +114,21 @@ const CO = {
 }
 
 const TH = {
-  padding: '1.5mm 1mm', border: `1px solid ${B}`, fontWeight: '700',
-  textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.2,
-  color: '#fff', fontSize: '8px',
+  padding: '2.5mm 1.5mm',
+  border: `1px solid ${B}`,
+  fontWeight: '700',
+  textAlign: 'center',
+  whiteSpace: 'pre-line',
+  lineHeight: 1.2,
+  color: '#fff',
+  fontSize: '11px',
 }
 const TD = {
-  padding: '1mm 1mm', border: `1px solid ${B}`,
-  height: '5.5mm', fontSize: '8px',
+  padding: '2mm 1.5mm',
+  border: `1px solid ${B}`,
+  height: '9mm',
+  fontSize: '11px',
 }
-
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
 const fmtByCurrency = (n, currency) => currency === 'USD' ? fmtUSD(n) : fmtKHR(n)
