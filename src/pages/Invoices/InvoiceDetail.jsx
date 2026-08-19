@@ -8,12 +8,12 @@ import Modal from '../../components/UI/Modal.jsx'
 import ConfirmDialog from '../../components/UI/ConfirmDialog.jsx'
 import { sendOrderToTelegram } from '../../utils/telegram.js'
 
-// ── PAPER: A5 portrait, 148mm x 210mm, @page margin 3mm on every side.
+// ── PAPER: A5 portrait, 148mm x 210mm, @page margin 2mm on every side.
 //    That means the browser's actual printable area is:
-//      usable width  = 148mm - 3mm - 3mm = 142mm
-//      usable height = 210mm - 3mm - 3mm = 204mm
-//    Everything below is sized against those 142mm / 204mm numbers — NOT
-//    against the full 148mm/210mm sheet — so the content sits fully inside
+//      usable width  = 210mm - 2mm - 2mm = 206mm
+//      usable height = 297mm - 2mm - 2mm = 293mm
+//    Everything below is sized against those 206mm / 293mm numbers — NOT
+//    against the full 210mm/297mm sheet — so the content sits fully inside
 //    the printable area with no reliance on "Fit to page" / scaling.
 //
 //    NOTE: the browser (Chrome/Edge/etc.) still adds its own header/footer
@@ -23,9 +23,9 @@ import { sendOrderToTelegram } from '../../utils/telegram.js'
 //    printing/saving as PDF. ──
 const PAGE_W   = '210mm'
 const PAGE_H   = '297mm'
-const PAGE_MARGIN = '3mm'
-const USABLE_W = '204mm'
-const USABLE_H = '291mm'
+const PAGE_MARGIN = '2mm'
+const USABLE_W = '206mm'
+const USABLE_H = '293mm'
 
 const PRINT_STYLE = `
 @page {
@@ -52,7 +52,7 @@ const PRINT_STYLE = `
   #inv-print, #inv-print * { visibility: visible !important; }
 
   /* #inv-print is positioned at the top-left of the page's printable area
-     (which already starts 3mm in from the physical edge, per @page margin
+     (which already starts 2mm in from the physical edge, per @page margin
      above) and is sized to exactly fill that printable area — never wider
      than USABLE_W, so there is no horizontal overflow and no need for the
      browser to scale/shrink anything. */
@@ -88,19 +88,19 @@ const B  = '#1a2c8a'
 // every place that referenced LB now renders plain white instead of light blue.
 const LB = '#ffffff'
 
-// ── Max rows printed on a single physical page. Budgeted against the A5
-//    usable height (204mm) as follows, per copy/page:
-//      header block (logo + title + phone)   ≈ 38mm
-//      customer row                          ≈  9mm
-//      items table header                    ≈ 10mm
-//      15 item rows × 5.5mm                  ≈ 82.5mm
-//      totals + signatures footer (last pg)  ≈ 45mm
-//      page padding (top+bottom)             ≈  6mm
+// ── Max rows printed on a single physical page. Row height was bumped up
+//    (TD height 9mm → 11mm, font 11px → 12px) and outer padding removed for
+//    readability/more usable width, per copy/page:
+//      header block (logo + title + phone, bigger now) ≈ 42mm
+//      customer row                                     ≈  9mm
+//      items table header                               ≈ 10mm
+//      15 item rows × ~7mm rendered                     ≈105mm
+//      totals + signatures footer (last pg)              ≈ 45mm
 //      ------------------------------------------------
-//      total                                 ≈ 190.5mm  (< 204mm usable)
-//    That leaves ~13mm of headroom. If your printer/PDF preview still shows
-//    overflow (e.g. a font substitution renders Khmer taller), lower this
-//    number first — try 12 or 13 — before touching anything else. Row
+//      total                                             ≈211mm  (< 293mm usable)
+//    That leaves comfortable headroom. If your printer/PDF preview still shows
+//    overflow (e.g. a font substitution renders Khmer taller), lower
+//    ROWS_PER_PAGE first — try 12 or 13 — before touching anything else. Row
 //    numbering (No column) keeps counting across pages via `startIndex`;
 //    totals/footer only render on the LAST page of each copy so the total
 //    isn't printed multiple times. ──
@@ -121,13 +121,13 @@ const TH = {
   whiteSpace: 'pre-line',
   lineHeight: 1.2,
   color: '#fff',
-  fontSize: '11px',
+  fontSize: '12px',
 }
 const TD = {
-  padding: '2mm 1.5mm',
+  padding: '2.5mm 1.5mm',
   border: `1px solid ${B}`,
-  height: '9mm',
-  fontSize: '11px',
+  height: '11mm',
+  fontSize: '12px',
 }
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
@@ -188,7 +188,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
     : remainingAmt  // pending/partial = show what's owed
 
   return (
-    <div style={{ padding: '3mm 4mm', position: 'relative', boxSizing: 'border-box', width: '100%', background: '#fff' }}>
+    <div style={{ padding: 0, margin: 0, position: 'relative', boxSizing: 'border-box', width: '100%', background: '#fff' }}>
       <div style={{ position: 'absolute', top: '3mm', right: '4mm', fontSize: '7px', color: B, fontWeight: '700', opacity: 0.5 }}>
         {copyLabel}
         {pageInfo && pageInfo.total > 1 && (
@@ -201,21 +201,21 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
       {/* Header */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
         <tbody><tr>
-          <td style={{ width: '16mm', verticalAlign: 'middle' }}>
-            <div style={{ width: '15mm', height: '15mm', border: `2px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
-              <div style={{ width: '11mm', height: '11mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: '900', color: B }}>{CO.badge}</span>
+          <td style={{ width: '19mm', verticalAlign: 'middle' }}>
+            <div style={{ width: '18mm', height: '18mm', border: `2.5px solid ${B}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: LB }}>
+              <div style={{ width: '13mm', height: '13mm', borderRadius: '50%', border: `1.5px dashed ${B}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '16px', fontWeight: '900', color: B }}>{CO.badge}</span>
               </div>
             </div>
           </td>
           <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '0 2mm' }}>
-            <div style={{ fontSize: '17px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
-            <div style={{ fontSize: '9px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
-            <div style={{ fontSize: '8px', color: B, marginTop: '0.8mm' }}>
+            <div style={{ fontSize: '21px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>{CO.name}</div>
+            <div style={{ fontSize: '10.5px', fontWeight: '700', color: B, marginTop: '1mm', lineHeight: 1.25 }}>{CO.sub}</div>
+            <div style={{ fontSize: '9px', color: B, marginTop: '0.8mm' }}>
               <span style={{ fontWeight: '700' }}>{CO.addrLbl}:&nbsp;</span>{CO.addr}
             </div>
           </td>
-          <td style={{ width: '16mm' }} />
+          <td style={{ width: '19mm' }} />
         </tr></tbody>
       </table>
 
@@ -232,7 +232,7 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
             <div style={{ fontSize: '14px', fontWeight: '900', color: B, letterSpacing: '0.3px', lineHeight: 1.1 }}>វិក្កយបត្រ</div>
             <div style={{ fontSize: '7px', fontWeight: '700', letterSpacing: '2px', color: B, marginTop: '1mm' }}>INVOICE</div>
           </td>
-          <td style={{ width: '28mm', verticalAlign: 'top', textAlign: 'right', fontSize: '8px', lineHeight: 1.5 }}>
+          <td style={{ width: '30mm', verticalAlign: 'top', textAlign: 'right', fontSize: '10px', lineHeight: 1.6, fontWeight: '600' }}>
             <div><b>Tel:</b>&nbsp;{CO.tel1}</div>
             <div>📱&nbsp;{CO.tel2}</div>
             <div>📱&nbsp;{CO.tel3}</div>
@@ -656,10 +656,10 @@ export default function InvoiceDetail() {
       </p>
 
       {/* Printable invoice.
-          On screen this is shown at the full 148mm page width so it reads
+          On screen this is shown at the full page width so it reads
           as "a sheet of paper". In print, PRINT_STYLE above pins it to the
-          142mm printable area (148mm page − 3mm margin on each side), so
-          what you see in Print Preview at 100% scale / A5 is exactly what
+          usable printable area (page − PAGE_MARGIN on each side), so
+          what you see in Print Preview at 100% scale is exactly what
           prints — no "Fit to page" needed. */}
       <div style={{ overflowX: 'auto' }}>
         <div id="inv-print" ref={printRef} style={{
