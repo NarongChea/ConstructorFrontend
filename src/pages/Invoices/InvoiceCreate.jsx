@@ -47,7 +47,16 @@ const SHEET_TYPES = [
   { value: 'curved',   label: 'កោង'   },
   { value: 'flat',     label: 'លាត'   },
 ]
-const isZincProduct = (name) => !!name && name.includes('ស័ង្កសី')
+
+// ── Matches zinc-sheet product names regardless of which Khmer diacritic
+//    was used before ង — some records use ័ (MUSIKATOAN, U+17C2) as in
+//    "ស័ង្កសី", others use ្ (COENG, U+17D2) as in "ស្ង្កសី". These render
+//    almost identically but are different Unicode characters, so a plain
+//    .includes('ស័ង្កសី') string check silently misses the second spelling
+//    and those products fall through to the normal add-to-cart flow instead
+//    of opening the length-entry (sheet) builder. The regex below accepts
+//    either diacritic so both spellings are treated as zinc products. ──
+const isZincProduct = (name) => !!name && /ស[័្]ង្កសី/.test(name)
 
 // ── Only digits and a single decimal point — used for the ចោលចុង / កោង
 //    text inputs so people can type floats reliably (some mobile keyboards
