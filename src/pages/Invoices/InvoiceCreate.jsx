@@ -49,6 +49,12 @@ const SHEET_TYPES = [
 ]
 const isZincProduct = (name) => !!name && name.includes('ស័ង្កសី')
 
+// ── Only digits and a single decimal point — used for the ចោលចុង / កោង
+//    text inputs so people can type floats reliably (some mobile keyboards
+//    misbehave with <input type="number"> for decimals). Empty string is
+//    allowed so the field can be cleared while typing. ──
+const isValidDecimalInput = (v) => v === '' || /^\d*\.?\d*$/.test(v)
+
 export default function InvoiceCreate() {
   const navigate = useNavigate()
 
@@ -295,11 +301,11 @@ export default function InvoiceCreate() {
   //    at the moment the FIRST segment for that variant is added.
   //
   //    For the កោង (curved) cut, two extra measurements are collected —
-  //    ចោលចុង and កោង — and added on top of the entered length to get the
-  //    material length actually used:
-  //      effectiveLength = length + ចោលចុង + កោង
-  //    ត្រង់ and លាត use the entered length as-is. Subtotal for the segment is
-  //    always effectiveLength × qty × price-per-meter. ──
+  //    ចោលចុង and កោង — for RECORD-KEEPING ONLY. They are NOT added into the
+  //    length used for pricing: the entered length already includes whatever
+  //    allowance the person accounted for, so pricing always uses
+  //    length × qty × price-per-meter, regardless of cut type. ត្រង់ and
+  //    លាត simply have no extra measurements to record. ──
   const addSheetSegment = () => {
     if (!sheetBuilder) return
     const { variant, length, qty, type, extra1, extra2 } = sheetBuilder
@@ -311,10 +317,11 @@ export default function InvoiceCreate() {
     const defaultTier = tiers.find(t => t.type === customerType) ?? tiers[0]
     const pricePerMeter = defaultTier.price
 
+    // Record-keeping only — NOT added into the price calculation.
     const extra1Num = type === 'curved' ? (Number(extra1) || 0) : 0
     const extra2Num = type === 'curved' ? (Number(extra2) || 0) : 0
-    const effectiveLength = lengthNum + extra1Num + extra2Num
-    const segSubtotal = effectiveLength * qtyNum * pricePerMeter
+    const effectiveLength = lengthNum
+    const segSubtotal = lengthNum * qtyNum * pricePerMeter
     const typeLabel = SHEET_TYPES.find(t => t.value === type)?.label ?? type
 
     const segment = {
@@ -687,9 +694,9 @@ export default function InvoiceCreate() {
         <div className="flex flex-wrap gap-2 items-end">
           <div className="w-28">
             <label className="block text-xs font-medium text-gray-500 mb-1">ប្រវែង (m)</label>
-            <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
+            <input type="text" inputMode="decimal" className="input-field text-sm text-right"
               value={length} placeholder="2.34"
-              onChange={e => setSheetBuilder(p => ({ ...p, length: e.target.value }))}
+              onChange={e => { const v = e.target.value; if (isValidDecimalInput(v)) setSheetBuilder(p => ({ ...p, length: v })) }}
               onKeyDown={e => e.key === 'Enter' && addSheetSegment()} />
           </div>
           <div className="w-20">
@@ -708,17 +715,21 @@ export default function InvoiceCreate() {
           </div>
           {type === 'curved' && (
             <>
+              {/* ចោលចុង / កោង — record-keeping only, NOT used in the price
+                  calculation (see addSheetSegment). text + inputMode=decimal
+                  so decimals type reliably, restricted via isValidDecimalInput
+                  to digits + a single dot. */}
               <div className="w-24">
                 <label className="block text-xs font-medium text-gray-500 mb-1">ចោលចុង</label>
-                <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
-                  value={extra1}
-                  onChange={e => setSheetBuilder(p => ({ ...p, extra1: e.target.value }))} />
+                <input type="text" inputMode="decimal" className="input-field text-sm text-right"
+                  value={extra1} placeholder="0"
+                  onChange={e => { const v = e.target.value; if (isValidDecimalInput(v)) setSheetBuilder(p => ({ ...p, extra1: v })) }} />
               </div>
               <div className="w-24">
                 <label className="block text-xs font-medium text-gray-500 mb-1">កោង</label>
-                <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
-                  value={extra2}
-                  onChange={e => setSheetBuilder(p => ({ ...p, extra2: e.target.value }))} />
+                <input type="text" inputMode="decimal" className="input-field text-sm text-right"
+                  value={extra2} placeholder="0"
+                  onChange={e => { const v = e.target.value; if (isValidDecimalInput(v)) setSheetBuilder(p => ({ ...p, extra2: v })) }} />
               </div>
             </>
           )}

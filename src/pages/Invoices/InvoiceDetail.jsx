@@ -100,10 +100,13 @@ const LB = '#ffffff'
 //      total                                             ≈211mm  (< 293mm usable)
 //    That leaves comfortable headroom. If your printer/PDF preview still shows
 //    overflow (e.g. a font substitution renders Khmer taller), lower
-//    ROWS_PER_PAGE first — try 12 or 13 — before touching anything else. Row
-//    numbering (No column) keeps counting across pages via `startIndex`;
-//    totals/footer only render on the LAST page of each copy so the total
-//    isn't printed multiple times. ──
+//    ROWS_PER_PAGE first — try 12 or 13 — before touching anything else.
+//
+//    NOTE: rows here means PRINT ROWS, not invoice items — a ស័ង្កសី item
+//    with 3 length entries takes up 4 rows (1 header + 3 segment rows), see
+//    flattenPrintRows() below. Row numbering ("No" column) only increments
+//    for real product entries via `itemNo`; totals/footer only render on the
+//    LAST page of each copy so the total isn't printed multiple times. ──
 const ROWS_PER_PAGE = 14
 
 const CO = {
@@ -141,9 +144,52 @@ const chunkItems = (arr, size) => {
   return out.length ? out : [[]]
 }
 
-function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageInfo }) {
-  const rows = [...items]
-  while (rows.length < ROWS_PER_PAGE) rows.push(null)
+// ── Flatten invoice items into print rows. Normal items map 1:1 to a row.
+//    ស័ង្កសី items expand into a header row (product name only, no
+//    qty/price/total) followed by one row per length entry:
+//      ស័ង្កសី ក្រហម                          ← header row (blank qty/price/total)
+//      2.3 × 5 ត្រង់      11.5    2,000 ៛   23,000 ៛     ← segment row
+//      3 × 5 ត្រង់        15      2,000 ៛   30,000 ៛     ← segment row
+//    A segment row's "ចំនួន" (qty) column shows total meters used
+//    (length × pieces — e.g. "3.2 × 7" → 22.4), so it doubles as the m²/total-
+//    length figure. Price and total columns are price/m and qty×price.
+//    Numbering ("លរ") only increments for real product entries — segment
+//    rows leave the No column blank so they read as sub-lines of the
+//    product header above them. Other (non-sheet-metal) items are untouched
+//    and print exactly as before. ──
+const flattenPrintRows = (items) => {
+  const rows = []
+  let n = 0
+  ;(items || []).forEach(item => {
+    const hasSegments = item?.isSheetMetal && Array.isArray(item.segments) && item.segments.length > 0
+    if (hasSegments) {
+      n += 1
+      rows.push({ ...item, rowType: 'sheet-header', itemNo: n })
+      item.segments.forEach(seg => {
+        // Total length used for this entry = length × piece count.
+        const segLength = seg.effectiveLength ?? seg.length
+        const segQty = Math.round(segLength * seg.qty * 100) / 100
+        rows.push({
+          ...item,
+          rowType: 'sheet-segment',
+          itemNo: null,
+          rowLabel: `${seg.length} × ${seg.qty}${seg.typeLabel ? ' ' + seg.typeLabel : (seg.type ? ' ' + seg.type : '')}`,
+          quantity: segQty,
+          unitPrice: item.unitPrice,
+          subtotal: (seg.subtotal !== undefined && seg.subtotal !== null) ? seg.subtotal : segQty * item.unitPrice,
+        })
+      })
+    } else {
+      n += 1
+      rows.push({ ...item, rowType: 'normal', itemNo: n })
+    }
+  })
+  return rows
+}
+
+function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
+  const displayRows = [...rows]
+  while (displayRows.length < ROWS_PER_PAGE) displayRows.push(null)
 
   const d     = new Date(invoice.createdAt)
   const day   = String(d.getDate()).padStart(2, '0')
@@ -265,34 +311,36 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           </tr>
         </thead>
         <tbody>
-          {rows.map((item, i) => {
-            const itemCurrency = isBoth ? (item?.currency || 'KHR') : invoice.currency
-            // ── ស័ង្កសី (sheet-metal) items carry a `segments` array — one row
-            //    per length entry that was added in the builder on Create. These
-            //    print as extra lines under the product name, e.g.:
-            //      ស័ង្កសី ក្រហម
-            //      2.3 × 5 ត្រង់
-            //      3 × 5 ត្រង់
-            const hasSegments = item?.isSheetMetal && Array.isArray(item.segments) && item.segments.length > 0
+          {displayRows.map((row, i) => {
+            const itemCurrency = isBoth ? (row?.currency || 'KHR') : invoice.currency
+            const isHeader  = row?.rowType === 'sheet-header'
+            const isSegment = row?.rowType === 'sheet-segment'
             return (
               <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : LB }}>
-                <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{item ? startIndex + i + 1 : ''}</td>
+                <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{row && row.itemNo ? row.itemNo : ''}</td>
                 <td style={{ ...TD }}>
-                  {item
+                  {row
   ? <>
-      {hasSegments ? (
-        <span style={{ fontWeight: '700' }}>{item.productName}</span>
+      {isSegment ? (
+        // ── Segment row: length × qty (+ cut type) goes in the ទំនិញ
+        //    column, e.g. "3.2 × 7 ត្រង់". Qty/price/total for this row
+        //    are rendered in their own columns below. ──
+        <span style={{ color: '#444' }}>{row.rowLabel}</span>
+      ) : isHeader ? (
+        // ── Header row: product name only, no qty/price/total (those
+        //    render blank in the columns below). ──
+        <span style={{ fontWeight: '700' }}>{row.productName}</span>
       ) : (
-        item.brand && (
+        row.brand && (
           <span style={{ fontWeight: '600' }}>
-            {item.brand}
+            {row.brand}
           </span>
         )
       )}
 
-      {!hasSegments && item.unitValue ? (
+      {!isHeader && !isSegment && row.unitValue ? (
         <span style={{ color: '#777' }}>
-          ({item.unitValue}{item.unit})
+          ({row.unitValue}{row.unit})
         </span>
       ) : null}
 
@@ -301,23 +349,14 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           [{itemCurrency}]
         </span>
       )}
-
-      {hasSegments && (
-        <div style={{ marginTop: '1mm', fontSize: '0.8em', color: '#444', lineHeight: 1.35 }}>
-          {item.segments.map((seg, si) => (
-            <div key={si}>
-              {seg.length} × {seg.qty} {seg.typeLabel || seg.type}
-              {seg.type === 'curved' ? ` (ចោលចុង ${seg.extra1}, កោង ${seg.extra2})` : ''}
-            </div>
-          ))}
-        </div>
-      )}
     </>
   : <>&nbsp;</>}
                 </td>
-                <td style={{ ...TD, textAlign: 'center' }}>{item ? item.quantity : ''}</td>
-                <td style={{ ...TD, textAlign: 'right' }}>{item ? fmtByCurrency(item.unitPrice, itemCurrency) + (item.isSheetMetal ? '/m' : '') : ''}</td>
-                <td style={{ ...TD, textAlign: 'right', fontWeight: item ? '700' : '400' }}>{item ? fmtByCurrency(item.subtotal, itemCurrency) : ''}</td>
+                {/* Header rows: qty/price/total stay blank — the product
+                    name row is a grouping label, not a priced line. */}
+                <td style={{ ...TD, textAlign: 'center' }}>{row && !isHeader ? row.quantity : ''}</td>
+                <td style={{ ...TD, textAlign: 'right' }}>{row && !isHeader ? fmtByCurrency(row.unitPrice, itemCurrency) + (isSegment ? '/m' : '') : ''}</td>
+                <td style={{ ...TD, textAlign: 'right', fontWeight: row && !isHeader ? '700' : '400' }}>{row && !isHeader ? fmtByCurrency(row.subtotal, itemCurrency) : ''}</td>
               </tr>
             )
           })}
@@ -623,9 +662,11 @@ export default function InvoiceDetail() {
     : (!isCancelled && !isFullyPaid)
   const canMarkNotPaid = !isCancelled && !isPending
 
-  // ── Split items into pages, once per render. Both the customer copy
-  //    and the shop copy walk the same chunks so page counts always match. ──
-  const itemChunks = chunkItems(invoice?.items, ROWS_PER_PAGE)
+  // ── Split PRINT ROWS (not raw items — see flattenPrintRows) into pages,
+  //    once per render. Both the customer copy and the shop copy walk the
+  //    same chunks so page counts always match. ──
+  const printRows  = flattenPrintRows(invoice?.items)
+  const itemChunks = chunkItems(printRows, ROWS_PER_PAGE)
   const lastPageIdx = itemChunks.length - 1
 
   return (
@@ -702,8 +743,7 @@ export default function InvoiceDetail() {
   >
               <InvoiceCopy
                 invoice={invoice}
-                items={chunk}
-                startIndex={i * ROWS_PER_PAGE}
+                rows={chunk}
                 copyLabel="អតិថិជន / Customer Copy"
                 showTotals={i === lastPageIdx}
                 pageInfo={{ page: i + 1, total: itemChunks.length }}
@@ -722,8 +762,7 @@ export default function InvoiceDetail() {
               >
                 <InvoiceCopy
                   invoice={invoice}
-                  items={chunk}
-                  startIndex={i * ROWS_PER_PAGE}
+                  rows={chunk}
                   copyLabel="ហាង / Shop Copy"
                   showTotals={i === lastPageIdx}
                   pageInfo={{ page: i + 1, total: itemChunks.length }}
