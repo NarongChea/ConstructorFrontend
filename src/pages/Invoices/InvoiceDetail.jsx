@@ -267,19 +267,30 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
         <tbody>
           {rows.map((item, i) => {
             const itemCurrency = isBoth ? (item?.currency || 'KHR') : invoice.currency
+            // ── ស័ង្កសី (sheet-metal) items carry a `segments` array — one row
+            //    per length entry that was added in the builder on Create. These
+            //    print as extra lines under the product name, e.g.:
+            //      ស័ង្កសី ក្រហម
+            //      2.3 × 5 ត្រង់
+            //      3 × 5 ត្រង់
+            const hasSegments = item?.isSheetMetal && Array.isArray(item.segments) && item.segments.length > 0
             return (
               <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : LB }}>
                 <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{item ? startIndex + i + 1 : ''}</td>
                 <td style={{ ...TD }}>
                   {item
   ? <>
-      {item.brand && (
-        <span style={{ fontWeight: '600' }}>
-          {item.brand}
-        </span>
+      {hasSegments ? (
+        <span style={{ fontWeight: '700' }}>{item.productName}</span>
+      ) : (
+        item.brand && (
+          <span style={{ fontWeight: '600' }}>
+            {item.brand}
+          </span>
+        )
       )}
 
-      {item.unitValue ? (
+      {!hasSegments && item.unitValue ? (
         <span style={{ color: '#777' }}>
           ({item.unitValue}{item.unit})
         </span>
@@ -290,11 +301,22 @@ function InvoiceCopy({ invoice, items, startIndex, copyLabel, showTotals, pageIn
           [{itemCurrency}]
         </span>
       )}
+
+      {hasSegments && (
+        <div style={{ marginTop: '1mm', fontSize: '0.8em', color: '#444', lineHeight: 1.35 }}>
+          {item.segments.map((seg, si) => (
+            <div key={si}>
+              {seg.length} × {seg.qty} {seg.typeLabel || seg.type}
+              {seg.type === 'curved' ? ` (ចោលចុង ${seg.extra1}, កោង ${seg.extra2})` : ''}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   : <>&nbsp;</>}
                 </td>
                 <td style={{ ...TD, textAlign: 'center' }}>{item ? item.quantity : ''}</td>
-                <td style={{ ...TD, textAlign: 'right' }}>{item ? fmtByCurrency(item.unitPrice, itemCurrency) : ''}</td>
+                <td style={{ ...TD, textAlign: 'right' }}>{item ? fmtByCurrency(item.unitPrice, itemCurrency) + (item.isSheetMetal ? '/m' : '') : ''}</td>
                 <td style={{ ...TD, textAlign: 'right', fontWeight: item ? '700' : '400' }}>{item ? fmtByCurrency(item.subtotal, itemCurrency) : ''}</td>
               </tr>
             )

@@ -30,6 +30,25 @@ const roundToNearest500 = (n) => {
   return base + 1000
 }
 
+// ── ស័ង្កសី (corrugated zinc roofing sheet) products are sold by the meter.
+//    When a variant belonging to one of these products is picked, instead of
+//    adding straight to the cart we open a small "sheet builder" so the
+//    person can enter the length (m), how many sheets at that length, and
+//    the cut type. Repeated clicks of "add" accumulate multiple length
+//    entries under ONE cart line for that variant — matching how these are
+//    handed out/printed: several "length × qty type" rows under a single
+//    product name, e.g.
+//      ស័ង្កសី ក្រហម
+//      2.3 × 5 ត្រង់
+//      3 × 5 ត្រង់
+// ──
+const SHEET_TYPES = [
+  { value: 'straight', label: 'ត្រង់' },
+  { value: 'curved',   label: 'កោង'   },
+  { value: 'flat',     label: 'លាត'   },
+]
+const isZincProduct = (name) => !!name && name.includes('ស័ង្កសី')
+
 export default function InvoiceCreate() {
   const navigate = useNavigate()
 
@@ -81,6 +100,11 @@ export default function InvoiceCreate() {
   const [customPrice,   setCustomPrice]   = useState('')
   const [customCurrency,setCustomCurrency]= useState('KHR')
   const [customQty,     setCustomQty]     = useState(1)
+
+  // ── Sheet-metal (ស័ង្កសី) length-entry builder. Non-null while a zinc
+  //    variant's builder panel is open. Cleared on close, or when the person
+  //    navigates to a different product/category. ──
+  const [sheetBuilder,  setSheetBuilder]  = useState(null)
 
   const dSearch = useDebounce(search, 400)
 
@@ -135,6 +159,7 @@ export default function InvoiceCreate() {
     : []
 
   const openCategory = useCallback(async (cat) => {
+    setSheetBuilder(null)
     setSelectedCat(cat); setSelectedProd(null); setVariants([])
     setSearch(''); setSearchResults([])
     setBrowseMode('products')
@@ -170,6 +195,7 @@ export default function InvoiceCreate() {
   }
 
   const selectProduct = async (p) => {
+    setSheetBuilder(null)
     setSelectedProd(p); setVariants([])
 
     const cached = variantsCacheRef.current.get(p._id)
@@ -186,6 +212,7 @@ export default function InvoiceCreate() {
   }
 
   const goBack = () => {
+    setSheetBuilder(null)
     if (selectedProd) { setSelectedProd(null); setVariants([]) }
     else if (browseMode === 'products') {
       setBrowseMode('categories'); setSelectedCat(null); setCatProducts([])
@@ -252,6 +279,92 @@ export default function InvoiceCreate() {
       variantCurrency,
     }])
     toast.success(`បន្ថែម: ${selectedProd?.name} – ${variant.unitValue}${variant.unit}`)
+  }
+
+  // ── Open the length-entry builder for a ស័ង្កសី variant instead of adding
+  //    it to the cart immediately. ──
+  const openSheetBuilder = (variant) => {
+    setSheetBuilder({ variant, length: '', qty: 1, type: 'straight', extra1: '', extra2: '' })
+  }
+  const closeSheetBuilder = () => setSheetBuilder(null)
+
+  // ── Add one length entry ("segment") for the variant currently open in the
+  //    sheet builder. Segments for the same variant are merged into a single
+  //    cart line (one product name, many "length × qty type" rows underneath
+  //    — matches how these get printed). Price is locked to the tier price
+  //    at the moment the FIRST segment for that variant is added.
+  //
+  //    For the កោង (curved) cut, two extra measurements are collected —
+  //    ចោលចុង and កោង — and added on top of the entered length to get the
+  //    material length actually used:
+  //      effectiveLength = length + ចោលចុង + កោង
+  //    ត្រង់ and លាត use the entered length as-is. Subtotal for the segment is
+  //    always effectiveLength × qty × price-per-meter. ──
+  const addSheetSegment = () => {
+    if (!sheetBuilder) return
+    const { variant, length, qty, type, extra1, extra2 } = sheetBuilder
+    const lengthNum = Number(length)
+    const qtyNum = Math.max(1, Number(qty) || 1)
+    if (!lengthNum || lengthNum <= 0) { toast.error('សូមបញ្ចូលប្រវែង (m)'); return }
+
+    const tiers = getTiers(variant)
+    const defaultTier = tiers.find(t => t.type === customerType) ?? tiers[0]
+    const pricePerMeter = defaultTier.price
+
+    const extra1Num = type === 'curved' ? (Number(extra1) || 0) : 0
+    const extra2Num = type === 'curved' ? (Number(extra2) || 0) : 0
+    const effectiveLength = lengthNum + extra1Num + extra2Num
+    const segSubtotal = effectiveLength * qtyNum * pricePerMeter
+    const typeLabel = SHEET_TYPES.find(t => t.value === type)?.label ?? type
+
+    const segment = {
+      length: lengthNum, qty: qtyNum, type, typeLabel,
+      extra1: extra1Num, extra2: extra2Num,
+      effectiveLength, subtotal: segSubtotal,
+    }
+
+    setCart(prev => {
+      const idx = prev.findIndex(c => c.isSheetMetal && c.variantId === variant._id)
+      if (idx >= 0) {
+        return prev.map((c, i) => i === idx
+          ? { ...c, segments: [...c.segments, segment], subtotal: c.subtotal + segSubtotal, qty: c.qty + qtyNum }
+          : c)
+      }
+      return [...prev, {
+        isCustom: false,
+        isSheetMetal: true,
+        variantId: variant._id, sku: variant.sku,
+        productName: selectedProd?.name ?? '',
+        productLabel: selectedProd?.name ?? '',
+        productId: selectedProd?._id ?? null, variantOptions: variants,
+        brand: variant.brand ?? '', unit: variant.unit ?? 'm', unitValue: variant.unitValue ?? '',
+        stock: variant.stock, qty: qtyNum,
+        unitPrice: pricePerMeter, priceType: defaultTier.type,
+        subtotal: segSubtotal, tiers,
+        variantCurrency: variant.currency || 'KHR',
+        segments: [segment],
+      }]
+    })
+
+    toast.success(`បន្ថែម: ${lengthNum} × ${qtyNum} ${typeLabel}`)
+
+    // Reset the entry fields only — keep the builder (and variant) open so
+    // the next length can be typed in right away.
+    setSheetBuilder(prev => prev ? { ...prev, length: '', qty: 1, type: 'straight', extra1: '', extra2: '' } : prev)
+  }
+
+  // ── Remove one length entry from a ស័ង្កសី cart line. If that was the last
+  //    segment, the whole cart line is removed. ──
+  const removeSheetSegment = (cartIdx, segIdx) => {
+    setCart(prev => prev
+      .map((c, i) => {
+        if (i !== cartIdx || !c.isSheetMetal) return c
+        const seg = c.segments[segIdx]
+        const newSegments = c.segments.filter((_, si) => si !== segIdx)
+        if (newSegments.length === 0) return null
+        return { ...c, segments: newSegments, subtotal: c.subtotal - seg.subtotal, qty: c.qty - seg.qty }
+      })
+      .filter(Boolean))
   }
 
   const addCustomToCart = () => {
@@ -445,12 +558,26 @@ export default function InvoiceCreate() {
           const finalUnitPrice = displayCurrency === 'BOTH'
             ? c.unitPrice
             : toDisplay(c.unitPrice, vCurrency, displayCurrency)
+          const finalSubtotal = displayCurrency === 'BOTH'
+            ? c.subtotal
+            : toDisplay(c.subtotal, vCurrency, displayCurrency)
           const base = {
             quantity: c.qty,
             unitPrice: finalUnitPrice,
-            subtotal: c.qty * finalUnitPrice,
+            // Sheet-metal lines: subtotal is the sum of its segments (converted),
+            // not qty × unitPrice — unitPrice here is price-per-meter, and qty
+            // is a count of sheets, not meters, so qty × unitPrice would be wrong.
+            subtotal: c.isSheetMetal ? finalSubtotal : c.qty * finalUnitPrice,
             isCustom: c.isCustom,
             ...(displayCurrency === 'BOTH' ? { currency: vCurrency } : {}),
+            ...(c.isSheetMetal ? {
+              isSheetMetal: true,
+              segments: c.segments.map(seg => ({
+                length: seg.length, qty: seg.qty, type: seg.type, typeLabel: seg.typeLabel,
+                extra1: seg.extra1, extra2: seg.extra2, effectiveLength: seg.effectiveLength,
+                subtotal: displayCurrency === 'BOTH' ? seg.subtotal : toDisplay(seg.subtotal, vCurrency, displayCurrency),
+              })),
+            } : {}),
           }
           return c.isCustom
             ? { ...base, variantId: null, productName: c.productName }
@@ -539,6 +666,91 @@ export default function InvoiceCreate() {
     )
   )
 
+  // ── Sheet-metal length-entry builder panel. Shown above the variant grid
+  //    while a ស័ង្កសី variant is being built up with length entries. ──
+  const SheetBuilderPanel = () => {
+    if (!sheetBuilder) return null
+    const { variant, length, qty, type, extra1, extra2 } = sheetBuilder
+    const existing = cart.find(c => c.isSheetMetal && c.variantId === variant._id)
+    const vCurrency = variant.currency || 'KHR'
+    return (
+      <div className="mb-4 p-4 rounded-xl border-2 border-teal-300 bg-teal-50 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold text-teal-700">
+            📏 {variant.unitValue}{variant.unit}{variant.brand ? ` · ${variant.brand}` : ''} — បញ្ចូលប្រវែងសន្លឹក
+          </p>
+          <button onClick={closeSheetBuilder} className="text-xs text-teal-600 hover:text-teal-800 font-semibold shrink-0">
+            ✕ បិទ
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="w-28">
+            <label className="block text-xs font-medium text-gray-500 mb-1">ប្រវែង (m)</label>
+            <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
+              value={length} placeholder="2.34"
+              onChange={e => setSheetBuilder(p => ({ ...p, length: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && addSheetSegment()} />
+          </div>
+          <div className="w-20">
+            <label className="block text-xs font-medium text-gray-500 mb-1">ចំនួន</label>
+            <input type="number" min="1" className="input-field text-sm text-center"
+              value={qty}
+              onChange={e => setSheetBuilder(p => ({ ...p, qty: Math.max(1, Number(e.target.value) || 1) }))}
+              onKeyDown={e => e.key === 'Enter' && addSheetSegment()} />
+          </div>
+          <div className="w-28">
+            <label className="block text-xs font-medium text-gray-500 mb-1">ប្រភេទ</label>
+            <select className="input-field text-sm" value={type}
+              onChange={e => setSheetBuilder(p => ({ ...p, type: e.target.value }))}>
+              {SHEET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          {type === 'curved' && (
+            <>
+              <div className="w-24">
+                <label className="block text-xs font-medium text-gray-500 mb-1">ចោលចុង</label>
+                <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
+                  value={extra1}
+                  onChange={e => setSheetBuilder(p => ({ ...p, extra1: e.target.value }))} />
+              </div>
+              <div className="w-24">
+                <label className="block text-xs font-medium text-gray-500 mb-1">កោង</label>
+                <input type="number" min="0" step="0.01" className="input-field text-sm text-right"
+                  value={extra2}
+                  onChange={e => setSheetBuilder(p => ({ ...p, extra2: e.target.value }))} />
+              </div>
+            </>
+          )}
+          <button onClick={addSheetSegment}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold h-[38px] shrink-0">
+            + បន្ថែម
+          </button>
+        </div>
+
+        {existing && existing.segments.length > 0 && (
+          <div className="pt-2 border-t border-teal-200 space-y-1">
+            {existing.segments.map((seg, si) => (
+              <div key={si} className="flex justify-between items-center text-xs bg-white rounded-lg px-2 py-1.5 border border-teal-100">
+                <span>
+                  {seg.length} × {seg.qty} {seg.typeLabel}
+                  {seg.type === 'curved' ? ` (ចោលចុង ${seg.extra1}, កោង ${seg.extra2})` : ''}
+                </span>
+                <span className="font-semibold text-teal-700">
+                  {vCurrency === 'USD' ? fmtUSD(seg.subtotal) : fmtKHR(seg.subtotal)}
+                </span>
+              </div>
+            ))}
+            <div className="flex justify-between text-xs font-bold text-teal-800 pt-1">
+              <span>សរុប:</span>
+              <span>{vCurrency === 'USD' ? fmtUSD(existing.subtotal) : fmtKHR(existing.subtotal)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ── Variant card — min-height + h-full keeps cards level with each other
   //    even when one has 1 price tier and its neighbor has 3. ──
   const VariantCard = (v) => {
@@ -547,6 +759,7 @@ export default function InvoiceCreate() {
     const cartIdx = cart.findIndex(c => !c.isCustom && c.variantId === v._id)
     const inCart = cartIdx >= 0
     const cartQty = inCart ? cart[cartIdx].qty : 0
+    const isZinc = isZincProduct(selectedProd?.name)
 
     const decrementOrRemove = (e) => {
       e.stopPropagation()
@@ -559,15 +772,20 @@ export default function InvoiceCreate() {
         {inCart && (
           <div className="absolute -top-2 -right-2 z-10 flex items-center gap-1">
             <span className="bg-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow">
-              {cartQty} ក្នុងកន្ត្រក
+              {isZinc ? `${cartQty} សន្លឹក` : `${cartQty} ក្នុងកន្ត្រក`}
             </span>
-            <button type="button" onClick={decrementOrRemove} title="ដកចេញពីកន្ត្រក"
-              className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center shadow">
-              −
-            </button>
+            {/* Sheet-metal lines are edited by adding/removing length entries in
+                the builder panel or per-segment in the cart, not by a single
+                quick-decrement here — so that button is hidden for them. */}
+            {!isZinc && (
+              <button type="button" onClick={decrementOrRemove} title="ដកចេញពីកន្ត្រក"
+                className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold flex items-center justify-center shadow">
+                −
+              </button>
+            )}
           </div>
         )}
-        <button onClick={() => addToCart(v)} disabled={v.stock <= 0}
+        <button onClick={() => isZinc ? openSheetBuilder(v) : addToCart(v)} disabled={v.stock <= 0}
           className={`w-full h-full min-h-[188px] flex flex-col text-left p-4 rounded-xl border-2 bg-white transition-all ${
             inCart ? 'border-indigo-400 ring-2 ring-indigo-100' : v.stock>0?'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 active:scale-95':'border-gray-100 opacity-40 cursor-not-allowed'}`}>
           <div className="flex items-center justify-between mb-2">
@@ -584,7 +802,7 @@ export default function InvoiceCreate() {
             {tiers.map((t,i) => (
               <div key={i} className="flex justify-between items-center">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TIER_COLORS[t.type]??'bg-gray-100 text-gray-500'}`}>{t.label}</span>
-                <span className="text-xs font-bold text-indigo-600">{vCurrency === 'USD' ? fmtUSD(t.price) : fmtKHR(t.price)}</span>
+                <span className="text-xs font-bold text-indigo-600">{vCurrency === 'USD' ? fmtUSD(t.price) : fmtKHR(t.price)}{isZinc ? '/m' : ''}</span>
               </div>
             ))}
           </div>
@@ -715,6 +933,7 @@ export default function InvoiceCreate() {
             {selectedProd && (
               <div>
                 <p className="text-sm font-semibold text-gray-700 mb-3">📦 {selectedProd.name}</p>
+                <SheetBuilderPanel />
                 {loadingVars
                   ? <p className="text-center text-gray-400 py-8">កំពុងទាញ...</p>
                   : variants.length === 0
@@ -894,6 +1113,9 @@ export default function InvoiceCreate() {
                     {item.isCustom && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-semibold">ផ្ទាល់ខ្លួន</span>
                     )}
+                    {item.isSheetMetal && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 font-semibold">📏 លក់តាមម៉ែត្រ</span>
+                    )}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${vCurrency === 'USD' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                       {vCurrency === 'USD' ? '$' : '៛'}
                     </span>
@@ -905,60 +1127,93 @@ export default function InvoiceCreate() {
                     )}
                   </div>
 
-                  {/* Variant switch combo box — bigger box + bigger font */}
-                  {!item.isCustom && item.variantOptions?.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs text-gray-400 shrink-0">🔀 ប្តូរប្រភេទ:</span>
-                      <select
-                        value={item.variantId}
-                        onChange={e => switchVariant(idx, e.target.value)}
-                        className="flex-1 min-w-0 text-sm sm:text-base font-medium border-2 border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-indigo-400"
-                      >
-                        {item.variantOptions.map(v => {
-                          const vPrice = getTiers(v)[0]?.price ?? v.price ?? 0
-                          return (
-                            <option key={v._id} value={v._id}>
-                              {v.unitValue}{v.unit}{v.brand?` · ${v.brand}`:''} — {(v.currency === 'USD' ? fmtUSD : fmtKHR)(vPrice)}
-                            </option>
-                          )
-                        })}
-                      </select>
-                    </div>
-                  )}
-                  {!item.isCustom && item.tiers?.length > 1 && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1.5 font-medium">ជ្រើសប្រភេទតម្លៃ:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {item.tiers.map((t, ti) => (
-                          <button key={ti} onClick={() => applyTier(idx, t)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${item.priceType===t.type&&item.unitPrice===t.price?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
-                            {t.label} — {vCurrency === 'USD' ? fmtUSD(t.price) : fmtKHR(t.price)}
-                          </button>
-                        ))}
+                  {item.isSheetMetal ? (
+                    // ── Sheet-metal line: read-only list of length entries
+                    //    ("segments") instead of the normal qty/price row.
+                    //    Each entry can be removed on its own; removing the
+                    //    last one removes the whole cart line. ──
+                    <div className="space-y-1.5">
+                      {item.segments.map((seg, si) => (
+                        <div key={si} className="flex justify-between items-center text-xs bg-white/70 rounded-lg px-2.5 py-1.5 border border-gray-200">
+                          <span className="text-gray-700">
+                            {seg.length} × {seg.qty} {seg.typeLabel}
+                            {seg.type === 'curved' ? ` (ចោលចុង ${seg.extra1}, កោង ${seg.extra2})` : ''}
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-semibold text-green-600">
+                              {vCurrency === 'USD' ? fmtUSD(seg.subtotal) : fmtKHR(seg.subtotal)}
+                            </span>
+                            <button onClick={() => removeSheetSegment(idx, si)} className="text-red-400 hover:text-red-600 font-bold leading-none">×</button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-between items-center pt-1.5 border-t border-gray-200 text-sm">
+                        <span className="text-gray-500">
+                          {vCurrency === 'USD' ? fmtUSD(item.unitPrice) : fmtKHR(item.unitPrice)}/m × សរុប:
+                        </span>
+                        <span className="text-base font-bold text-green-600">
+                          {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
+                        </span>
                       </div>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2.5">
-                    <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
-                      <button onClick={() => setQty(idx, item.qty-1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">−</button>
-                      <input type="number" min="1" value={item.qty} onChange={e => setQty(idx, e.target.value)} className="w-12 text-center text-sm font-semibold py-1 border-x border-gray-200 focus:outline-none"/>
-                      <button onClick={() => setQty(idx, item.qty+1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">+</button>
-                    </div>
-                    <span className="text-gray-400 font-bold">×</span>
-                    <div className="flex-1 relative">
-                      <input type="number" min="0" value={item.unitPrice} onChange={e => setPrice(idx, e.target.value)} className="w-full border-2 border-gray-200 rounded-lg text-sm text-right pr-6 pl-2 py-1.5 font-semibold focus:outline-none focus:border-indigo-400 bg-white"/>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">{vCurrency === 'USD' ? '$' : '៛'}</span>
-                    </div>
-                    <span className="text-gray-400 font-bold">=</span>
-                    <div className="text-right min-w-[90px]">
-                      <p className="text-base font-bold text-green-600">
-                        {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
-                      </p>
-                      {displayCurrency !== 'BOTH' && vCurrency !== displayCurrency && (
-                        <p className="text-[10px] text-gray-400">({vCurrency === 'USD' ? fmtUSD(item.subtotal) : fmtKHR(item.subtotal)})</p>
+                  ) : (
+                    <>
+                      {/* Variant switch combo box — bigger box + bigger font */}
+                      {!item.isCustom && item.variantOptions?.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-gray-400 shrink-0">🔀 ប្តូរប្រភេទ:</span>
+                          <select
+                            value={item.variantId}
+                            onChange={e => switchVariant(idx, e.target.value)}
+                            className="flex-1 min-w-0 text-sm sm:text-base font-medium border-2 border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-indigo-400"
+                          >
+                            {item.variantOptions.map(v => {
+                              const vPrice = getTiers(v)[0]?.price ?? v.price ?? 0
+                              return (
+                                <option key={v._id} value={v._id}>
+                                  {v.unitValue}{v.unit}{v.brand?` · ${v.brand}`:''} — {(v.currency === 'USD' ? fmtUSD : fmtKHR)(vPrice)}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </div>
                       )}
-                    </div>
-                  </div>
+                      {!item.isCustom && item.tiers?.length > 1 && (
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1.5 font-medium">ជ្រើសប្រភេទតម្លៃ:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {item.tiers.map((t, ti) => (
+                              <button key={ti} onClick={() => applyTier(idx, t)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${item.priceType===t.type&&item.unitPrice===t.price?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                                {t.label} — {vCurrency === 'USD' ? fmtUSD(t.price) : fmtKHR(t.price)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2.5">
+                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
+                          <button onClick={() => setQty(idx, item.qty-1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">−</button>
+                          <input type="number" min="1" value={item.qty} onChange={e => setQty(idx, e.target.value)} className="w-12 text-center text-sm font-semibold py-1 border-x border-gray-200 focus:outline-none"/>
+                          <button onClick={() => setQty(idx, item.qty+1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">+</button>
+                        </div>
+                        <span className="text-gray-400 font-bold">×</span>
+                        <div className="flex-1 relative">
+                          <input type="number" min="0" value={item.unitPrice} onChange={e => setPrice(idx, e.target.value)} className="w-full border-2 border-gray-200 rounded-lg text-sm text-right pr-6 pl-2 py-1.5 font-semibold focus:outline-none focus:border-indigo-400 bg-white"/>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">{vCurrency === 'USD' ? '$' : '៛'}</span>
+                        </div>
+                        <span className="text-gray-400 font-bold">=</span>
+                        <div className="text-right min-w-[90px]">
+                          <p className="text-base font-bold text-green-600">
+                            {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
+                          </p>
+                          {displayCurrency !== 'BOTH' && vCurrency !== displayCurrency && (
+                            <p className="text-[10px] text-gray-400">({vCurrency === 'USD' ? fmtUSD(item.subtotal) : fmtKHR(item.subtotal)})</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   {!item.isCustom && item.qty > item.stock && (
                     <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-1.5">⚠️ ស្ទុំមានតែ {item.stock}</p>
                   )}
