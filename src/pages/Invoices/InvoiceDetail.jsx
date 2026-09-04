@@ -145,9 +145,9 @@ const chunkItems = (arr, size) => {
 }
 
 // ── Flatten invoice items into print rows. Normal items map 1:1 to a row.
-//    ស័ង្កសី items expand into a header row (product name only, no
-//    qty/price/total) followed by one row per length entry:
-//      ស័ង្កសី ក្រហម                          ← header row (blank qty/price/total)
+//    ស័ង្កសី items expand into a header row (product name + variant type,
+//    no qty/price/total) followed by one row per length entry:
+//      ស័ង្កសី ក្រហម (0.3)                    ← header row (product + type, blank qty/price/total)
 //      2.3 × 5 ត្រង់      11.5    2,000 ៛   23,000 ៛     ← segment row
 //      3 × 5 ត្រង់        15      2,000 ៛   30,000 ៛     ← segment row
 //    A segment row's "ចំនួន" (qty) column shows total meters used
@@ -155,8 +155,12 @@ const chunkItems = (arr, size) => {
 //    length figure. Price and total columns are price/m and qty×price.
 //    Numbering ("លរ") only increments for real product entries — segment
 //    rows leave the No column blank so they read as sub-lines of the
-//    product header above them. Other (non-sheet-metal) items are untouched
-//    and print exactly as before. ──
+//    product header above them. Cart lines are grouped per-variant (see
+//    addSheetSegment in InvoiceCreate), so if the same invoice has two
+//    different ស័ង្កសី types, each type gets its OWN header row with its
+//    own type label, and all its length entries print underneath it —
+//    they never get mixed into one group. Other (non-sheet-metal) items
+//    are untouched and print exactly as before. ──
 const flattenPrintRows = (items) => {
   const rows = []
   let n = 0
@@ -327,9 +331,16 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
         //    are rendered in their own columns below. ──
         <span style={{ color: '#444' }}>{row.rowLabel}</span>
       ) : isHeader ? (
-        // ── Header row: product name only, no qty/price/total (those
-        //    render blank in the columns below). ──
-        <span style={{ fontWeight: '700' }}>{row.productName}</span>
+        // ── Header row: product name + variant type (brand/color/
+        //    thickness) so that when an invoice has several ស័ង្កសី
+        //    types, each header row clearly identifies which type its
+        //    length rows below belong to, e.g. "ស័ង្កសី ក្រហម (0.3)".
+        //    No qty/price/total render here — those stay blank in the
+        //    columns below since this row is a grouping label only. ──
+        <span style={{ fontWeight: '700' }}>
+          {row.productName}
+          {row.brand ? <span style={{ fontWeight: '600' }}>&nbsp;{row.brand}</span> : null}
+        </span>
       ) : (
         row.brand && (
           <span style={{ fontWeight: '600' }}>
