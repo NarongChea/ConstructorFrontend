@@ -58,11 +58,18 @@ const SHEET_TYPES = [
 //    either diacritic so both spellings are treated as zinc products. ──
 const isZincProduct = (name) => !!name && /ស[័្]ង្កសី/.test(name)
 
-// ── Only digits and a single decimal point — used for the ចោលចុង / កោង
-//    text inputs so people can type floats reliably (some mobile keyboards
-//    misbehave with <input type="number"> for decimals). Empty string is
-//    allowed so the field can be cleared while typing. ──
+// ── Only digits and a single decimal point — used for the ចោលចុង / កោង /
+//    ប្រវែង text inputs so people can type floats reliably (some mobile
+//    keyboards misbehave with <input type="number"> for decimals). Empty
+//    string is allowed so the field can be cleared while typing. ──
 const isValidDecimalInput = (v) => v === '' || /^\d*\.?\d*$/.test(v)
+
+// ── Digits only (no decimal point) — used for whole-number "count" fields
+//    like ចំនួន (qty). Empty string is allowed so the field can be fully
+//    cleared and retyped instead of snapping back to a forced minimum on
+//    every keystroke (which is what type="number" + immediate Math.max
+//    clamping used to do — you could never delete the "1" to type "17"). ──
+const isValidIntInput = (v) => v === '' || /^\d*$/.test(v)
 
 export default function InvoiceCreate() {
   const navigate = useNavigate()
@@ -114,11 +121,19 @@ export default function InvoiceCreate() {
   const [customName,    setCustomName]    = useState('')
   const [customPrice,   setCustomPrice]   = useState('')
   const [customCurrency,setCustomCurrency]= useState('KHR')
-  const [customQty,     setCustomQty]     = useState(1)
+  // ── Stored as text (not number) for the same reason as sheetBuilder.qty
+  //    below — see isValidIntInput comment. ──
+  const [customQty,     setCustomQty]     = useState('1')
 
   // ── Sheet-metal (ស័ង្កសី) length-entry builder. Non-null while a zinc
   //    variant's builder panel is open. Cleared on close, or when the person
-  //    navigates to a different product/category. ──
+  //    navigates to a different product/category.
+  //    NOTE: `qty` is kept as TEXT (not a number) while the builder is open,
+  //    same reasoning as `length`/`extra1`/`extra2` — a plain
+  //    type="number" input that clamps to a minimum on every keystroke makes
+  //    it impossible to delete "1" and type "17", since the empty string in
+  //    between snaps straight back to "1". It's converted to a real number
+  //    only when actually needed (on blur, or when adding the segment). ──
   const [sheetBuilder,  setSheetBuilder]  = useState(null)
 
   const dSearch = useDebounce(search, 400)
@@ -297,9 +312,10 @@ export default function InvoiceCreate() {
   }
 
   // ── Open the length-entry builder for a ស័ង្កសី variant instead of adding
-  //    it to the cart immediately. ──
+  //    it to the cart immediately. qty starts as the TEXT '1', not the
+  //    number 1 — see the sheetBuilder state comment above. ──
   const openSheetBuilder = (variant) => {
-    setSheetBuilder({ variant, length: '', qty: 1, type: 'straight', extra1: '', extra2: '' })
+    setSheetBuilder({ variant, length: '', qty: '1', type: 'straight', extra1: '', extra2: '' })
   }
   const closeSheetBuilder = () => setSheetBuilder(null)
 
@@ -319,6 +335,8 @@ export default function InvoiceCreate() {
     if (!sheetBuilder) return
     const { variant, length, qty, type, extra1, extra2 } = sheetBuilder
     const lengthNum = Number(length)
+    // qty is free text while typing (can be ''), so normalize to a real
+    // integer ≥ 1 right here, same as before — just reading from a string.
     const qtyNum = Math.max(1, Number(qty) || 1)
     if (!lengthNum || lengthNum <= 0) { toast.error('សូមបញ្ចូលប្រវែង (m)'); return }
 
@@ -365,8 +383,9 @@ export default function InvoiceCreate() {
     toast.success(`បន្ថែម: ${lengthNum} × ${qtyNum} ${typeLabel}`)
 
     // Reset the entry fields only — keep the builder (and variant) open so
-    // the next length can be typed in right away.
-    setSheetBuilder(prev => prev ? { ...prev, length: '', qty: 1, type: 'straight', extra1: '', extra2: '' } : prev)
+    // the next length can be typed in right away. qty resets to the TEXT
+    // '1', matching the state's type.
+    setSheetBuilder(prev => prev ? { ...prev, length: '', qty: '1', type: 'straight', extra1: '', extra2: '' } : prev)
   }
 
   // ── Remove one length entry from a ស័ង្កសី cart line. If that was the last
@@ -399,7 +418,7 @@ export default function InvoiceCreate() {
       variantCurrency: customCurrency,
     }])
     toast.success(`បន្ថែម: ${name}`)
-    setCustomName(''); setCustomPrice(''); setCustomQty(1)
+    setCustomName(''); setCustomPrice(''); setCustomQty('1')
   }
 
   const setQty    = (idx,raw)  => { const qty=Math.max(1,Number(raw)||1); setCart(prev=>prev.map((c,i)=>i===idx?{...c,qty,subtotal:qty*c.unitPrice}:c)) }
@@ -629,9 +648,30 @@ export default function InvoiceCreate() {
     ? `${selectedCat?.name ?? ''} › ${selectedProd.name}`
     : selectedCat?.name ?? (browseMode==='search' ? `លទ្ធផល: "${dSearch}"` : null)
 
-  // ── Product cards: grid-cols-2 up through tablet/iPad, 3 only on large
-  //    desktops (xl). items-stretch + h-full on the button keeps every card
-  //    in a row the same height regardless of content length. ──
+  // ── NOTE ON THE FUNCTIONS BELOW (ProductGrid, CategoryMatchGrid,
+  //    SheetBuilderPanel, VariantCard, VariantSections):
+  //
+  //    These are plain functions that return JSX, defined inside this
+  //    component so they can close over local state/handlers without prop-
+  //    drilling everything. They are called DIRECTLY as functions —
+  //    `{SheetBuilderPanel()}` — rather than rendered as JSX components —
+  //    `<SheetBuilderPanel />`.
+  //
+  //    This distinction matters a lot: if you write `<SheetBuilderPanel />`,
+  //    React treats `SheetBuilderPanel` as a component type. Because this
+  //    function is redefined on every render of InvoiceCreate (it's declared
+  //    inside the component body), React sees a "new" component type on
+  //    every re-render — even though the code is identical — and throws away
+  //    the whole previous DOM subtree, mounting a fresh one from scratch.
+  //    That's what caused any input inside these blocks (e.g. the ស័ង្កសី
+  //    length/qty fields) to lose focus after every single keystroke: each
+  //    keystroke → setState → re-render → "new" component → remount → focus
+  //    lost, and you had to click back into the box for every character.
+  //
+  //    Calling them as plain functions instead means their returned JSX is
+  //    just inlined into InvoiceCreate's own render output — there's no
+  //    separate component boundary at all, so React diffs the actual
+  //    elements (divs, inputs, etc.) in place and keeps focus intact. ──
   const ProductGrid = ({ items, loading }) => (
     loading && items.length === 0
       ? <p className="text-center text-gray-400 py-10">កំពុងផ្ទុក...</p>
@@ -710,9 +750,17 @@ export default function InvoiceCreate() {
           </div>
           <div className="w-20">
             <label className="block text-xs font-medium text-gray-500 mb-1">ចំនួន</label>
-            <input type="number" min="1" className="input-field text-sm text-center"
+            {/* type="text" + free typing (isValidIntInput allows '' mid-edit)
+                instead of type="number" with an immediate Math.max(1, ...)
+                clamp — that old clamp made it impossible to delete the "1"
+                to type a different number, since every keystroke that
+                produced '' was instantly snapped back to "1" before the next
+                digit could be typed. Now the value only gets normalized to a
+                real integer ≥ 1 on blur (or when the segment is added). */}
+            <input type="text" inputMode="numeric" className="input-field text-sm text-center"
               value={qty}
-              onChange={e => setSheetBuilder(p => ({ ...p, qty: Math.max(1, Number(e.target.value) || 1) }))}
+              onChange={e => { const v = e.target.value; if (isValidIntInput(v)) setSheetBuilder(p => ({ ...p, qty: v })) }}
+              onBlur={() => setSheetBuilder(p => p ? { ...p, qty: String(Math.max(1, Number(p.qty) || 1)) } : p)}
               onKeyDown={e => e.key === 'Enter' && addSheetSegment()} />
           </div>
           <div className="w-28">
@@ -772,7 +820,10 @@ export default function InvoiceCreate() {
   }
 
   // ── Variant card — min-height + h-full keeps cards level with each other
-  //    even when one has 1 price tier and its neighbor has 3. ──
+  //    even when one has 1 price tier and its neighbor has 3.
+  //    NOTE: this one was already called as a plain function (VariantCard(v))
+  //    everywhere it's used, not as a JSX tag, so it never had the remount
+  //    problem described above. It's left as-is. ──
   const VariantCard = (v) => {
     const tiers = getTiers(v)
     const vCurrency = v.currency || 'KHR'
@@ -953,12 +1004,12 @@ export default function InvoiceCreate() {
             {selectedProd && (
               <div>
                 <p className="text-sm font-semibold text-gray-700 mb-3">📦 {selectedProd.name}</p>
-                <SheetBuilderPanel />
+                {SheetBuilderPanel()}
                 {loadingVars
                   ? <p className="text-center text-gray-400 py-8">កំពុងទាញ...</p>
                   : variants.length === 0
                     ? <div className="text-center py-8 space-y-2"><p className="text-4xl">📭</p><p className="text-sm text-gray-500">ផលិតផលនេះគ្មាន Variant</p></div>
-                    : <VariantSections list={variants} />
+                    : VariantSections({ list: variants })
                 }
               </div>
             )}
@@ -967,18 +1018,18 @@ export default function InvoiceCreate() {
             {!selectedProd && browseMode === 'search' && (
               <div>
                 <p className="text-xs text-gray-500 mb-3">លទ្ធផលស្វែងរក: <span className="font-semibold text-gray-700">"{dSearch}"</span></p>
-                <CategoryMatchGrid items={matchingCategories} />
-                <ProductGrid items={searchResults} loading={loadingSearch} />
+                {CategoryMatchGrid({ items: matchingCategories })}
+                {ProductGrid({ items: searchResults, loading: loadingSearch })}
               </div>
             )}
 
             {/* CATEGORY PRODUCTS */}
             {!selectedProd && browseMode === 'products' && (
               <div>
-                <ProductGrid
-                  items={dSearch ? searchResults : catProducts}
-                  loading={dSearch ? loadingSearch : loadingProds}
-                />
+                {ProductGrid({
+                  items: dSearch ? searchResults : catProducts,
+                  loading: dSearch ? loadingSearch : loadingProds,
+                })}
                 {!dSearch && catHasMore && (
                   <div className="mt-4 text-center">
                     <button onClick={loadMoreProducts} disabled={loadingProds}
@@ -1041,8 +1092,14 @@ export default function InvoiceCreate() {
             </div>
             <div className="w-20">
               <label className="block text-xs font-medium text-gray-500 mb-1">ចំនួន</label>
-              <input type="number" min="1" className="input-field text-sm text-center" placeholder="1" value={customQty}
-                onChange={e => setCustomQty(Math.max(1, Number(e.target.value) || 1))} onKeyDown={e => e.key === 'Enter' && addCustomToCart()} />
+              {/* Same fix as sheetBuilder.qty: free-text while typing, only
+                  normalized to a real integer ≥ 1 on blur, so you can clear
+                  the default "1" and type any number without it snapping
+                  back mid-edit. */}
+              <input type="text" inputMode="numeric" className="input-field text-sm text-center" placeholder="1" value={customQty}
+                onChange={e => { const v = e.target.value; if (isValidIntInput(v)) setCustomQty(v) }}
+                onBlur={() => setCustomQty(String(Math.max(1, Number(customQty) || 1)))}
+                onKeyDown={e => e.key === 'Enter' && addCustomToCart()} />
             </div>
             <button onClick={addCustomToCart}
               className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors shrink-0 h-[38px]">
