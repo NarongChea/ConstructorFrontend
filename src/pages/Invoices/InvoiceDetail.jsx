@@ -312,51 +312,74 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
         </thead>
         <tbody>
           {displayRows.map((row, i) => {
-            const itemCurrency = isBoth ? (row?.currency || 'KHR') : invoice.currency
-            const isHeader  = row?.rowType === 'sheet-header'
-            const isSegment = row?.rowType === 'sheet-segment'
+            const rowBg = i % 2 === 0 ? '#fff' : LB
+
+            // ── Empty padding row (fills the page up to ROWS_PER_PAGE) ──
+            if (!row) {
+              return (
+                <tr key={`empty-${i}`} style={{ background: rowBg }}>
+                  <td style={TD}>&nbsp;</td>
+                  <td style={TD}>&nbsp;</td>
+                  <td style={TD}>&nbsp;</td>
+                  <td style={TD}>&nbsp;</td>
+                  <td style={TD}>&nbsp;</td>
+                </tr>
+              )
+            }
+
+            const itemCurrency = isBoth ? (row.currency || 'KHR') : invoice.currency
+
+            // ── SHEET-METAL HEADER ROW ──────────────────────────────────
+            // Product name only. Qty/price/subtotal stay blank. Heavier
+            // bottom border marks it as the parent of the segment rows
+            // that follow it.
+            if (row.rowType === 'sheet-header') {
+              return (
+                <tr key={`sheet-header-${i}`} style={{ background: rowBg }}>
+                  <td style={{ ...TD, textAlign: 'center', fontWeight: '700', borderBottom: `2px solid ${B}` }}>
+                    {row.itemNo ?? ''}
+                  </td>
+                  <td style={{ ...TD, fontWeight: '700', borderBottom: `2px solid ${B}` }}>
+                    {row.productName}
+                  </td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                </tr>
+              )
+            }
+
+            // ── SHEET-METAL SEGMENT ROW ──────────────────────────────────
+            // Blank item number, indented label so it visually reads as a
+            // sub-line of the header row above it.
+            if (row.rowType === 'sheet-segment') {
+              return (
+                <tr key={`sheet-segment-${i}`} style={{ background: rowBg }}>
+                  <td style={{ ...TD, textAlign: 'center' }}></td>
+                  <td style={{ ...TD, paddingLeft: '8mm', color: '#444' }}>{row.rowLabel}</td>
+                  <td style={{ ...TD, textAlign: 'center' }}>{row.quantity}</td>
+                  <td style={{ ...TD, textAlign: 'right' }}>{fmtByCurrency(row.unitPrice, itemCurrency)}/m</td>
+                  <td style={{ ...TD, textAlign: 'right', fontWeight: '700' }}>{fmtByCurrency(row.subtotal, itemCurrency)}</td>
+                </tr>
+              )
+            }
+
+            // ── NORMAL PRODUCT ROW — unchanged behavior ──────────────────
             return (
-              <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : LB }}>
-                <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{row && row.itemNo ? row.itemNo : ''}</td>
+              <tr key={`normal-${i}`} style={{ background: rowBg }}>
+                <td style={{ ...TD, textAlign: 'center', fontWeight: '700' }}>{row.itemNo ?? ''}</td>
                 <td style={{ ...TD }}>
-                  {row
-  ? <>
-      {isSegment ? (
-        // ── Segment row: length × qty (+ cut type) goes in the ទំនិញ
-        //    column, e.g. "3.2 × 7 ត្រង់". Qty/price/total for this row
-        //    are rendered in their own columns below. ──
-        <span style={{ color: '#444' }}>{row.rowLabel}</span>
-      ) : isHeader ? (
-        // ── Header row: product name only, no qty/price/total (those
-        //    render blank in the columns below). ──
-        <span style={{ fontWeight: '700' }}>{row.productName}</span>
-      ) : (
-        row.brand && (
-          <span style={{ fontWeight: '600' }}>
-            {row.brand}
-          </span>
-        )
-      )}
-
-      {!isHeader && !isSegment && row.unitValue ? (
-        <span style={{ color: '#777' }}>
-          ({row.unitValue}{row.unit})
-        </span>
-      ) : null}
-
-      {isBoth && (
-        <span style={{ color: '#999', fontSize: '7px' }}>
-          [{itemCurrency}]
-        </span>
-      )}
-    </>
-  : <>&nbsp;</>}
+                  {row.brand && <span style={{ fontWeight: '600' }}>{row.brand}</span>}
+                  {row.unitValue ? (
+                    <span style={{ color: '#777' }}> ({row.unitValue}{row.unit})</span>
+                  ) : null}
+                  {isBoth && (
+                    <span style={{ color: '#999', fontSize: '7px' }}> [{itemCurrency}]</span>
+                  )}
                 </td>
-                {/* Header rows: qty/price/total stay blank — the product
-                    name row is a grouping label, not a priced line. */}
-                <td style={{ ...TD, textAlign: 'center' }}>{row && !isHeader ? row.quantity : ''}</td>
-                <td style={{ ...TD, textAlign: 'right' }}>{row && !isHeader ? fmtByCurrency(row.unitPrice, itemCurrency) + (isSegment ? '/m' : '') : ''}</td>
-                <td style={{ ...TD, textAlign: 'right', fontWeight: row && !isHeader ? '700' : '400' }}>{row && !isHeader ? fmtByCurrency(row.subtotal, itemCurrency) : ''}</td>
+                <td style={{ ...TD, textAlign: 'center' }}>{row.quantity}</td>
+                <td style={{ ...TD, textAlign: 'right' }}>{fmtByCurrency(row.unitPrice, itemCurrency)}</td>
+                <td style={{ ...TD, textAlign: 'right', fontWeight: '700' }}>{fmtByCurrency(row.subtotal, itemCurrency)}</td>
               </tr>
             )
           })}
