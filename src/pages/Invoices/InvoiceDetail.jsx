@@ -223,7 +223,7 @@ const flattenPrintRows = (items) => {
           subtotal: (seg.subtotal !== undefined && seg.subtotal !== null) ? seg.subtotal : segQty * item.unitPrice,
         })
       })
-    } else if (isZincProduct(item?.productName) || isZincCategoryItem(item)) {
+    } else if (isZincProduct(item?.productName) || isZincProduct(item?.brand) || isZincCategoryItem(item)) {
       // ── Fallback for zinc-sheet lines with NO segments array — e.g. the
       //    product was added through the normal "add to cart" flow (or is
       //    an older invoice) instead of the ស័ង្កសី length-entry builder,
