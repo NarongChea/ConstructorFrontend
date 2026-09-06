@@ -135,6 +135,26 @@ const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
 const fmtByCurrency = (n, currency) => currency === 'USD' ? fmtUSD(n) : fmtKHR(n)
 
+// ── Matches zinc-sheet product names regardless of spelling. Khmer for
+//    "corrugated zinc sheet" gets written several different ways depending
+//    on which connecting diacritic (or none at all) is used between ស and
+//    ង — e.g. ស័ង្កសី (with MUSIKATOAN ័), ស្ង្កសី (with COENG ្), or
+//    សង្ក្សី / សង្កសី (no mark between ស and ង at all). Rather than list
+//    every spelling variant one by one (and inevitably miss the next one a
+//    staff member types), strip the MUSIKATOAN (័, U+17C2) and COENG (្,
+//    U+17D2) marks out of the name first — every known variant collapses
+//    down to the same bare consonant skeleton "សងកសី" once those marks are
+//    removed, so this catches existing AND future spelling variants alike.
+//    Used below so a line added as a plain product (not through the
+//    ស័ង្កសី length-entry builder in InvoiceCreate, and so with no
+//    isSheetMetal/segments on it) still gets the header+segment print
+//    treatment purely from its product name containing this word. ──
+const isZincProduct = (name) => {
+  if (!name) return false
+  const stripped = name.replace(/[\u17C2\u17D2]/g, '')
+  return stripped.includes('សងកសី')
+}
+
 // ── Split an array into chunks of `size`. Always returns at least one chunk
 //    (even if `arr` is empty) so a page always renders. ──
 const chunkItems = (arr, size) => {
@@ -178,6 +198,28 @@ const flattenPrintRows = (items) => {
           unitPrice: item.unitPrice,
           subtotal: (seg.subtotal !== undefined && seg.subtotal !== null) ? seg.subtotal : segQty * item.unitPrice,
         })
+      })
+    } else if (isZincProduct(item?.productName)) {
+      // ── Fallback for zinc-sheet lines with NO segments array — e.g. the
+      //    product was added through the normal "add to cart" flow (or is
+      //    an older invoice) instead of the ស័ង្កសី length-entry builder,
+      //    so isSheetMetal/segments were never set. Still print it as a
+      //    header row + one segment row, built from this single line's own
+      //    length (unitValue) and quantity, so it's visually consistent
+      //    with proper multi-length sheet-metal lines instead of printing
+      //    as a flat single row. ──
+      n += 1
+      rows.push({ ...item, rowType: 'sheet-header', itemNo: n })
+      const segLength = Number(item.unitValue) || 0
+      const segQty = Math.round(segLength * (item.quantity || 0) * 100) / 100
+      rows.push({
+        ...item,
+        rowType: 'sheet-segment',
+        itemNo: null,
+        rowLabel: `${segLength || item.unitValue || ''} × ${item.quantity}`,
+        quantity: segQty || item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
       })
     } else {
       n += 1
