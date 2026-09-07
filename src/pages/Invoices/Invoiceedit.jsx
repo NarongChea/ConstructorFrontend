@@ -99,8 +99,29 @@ export default function InvoiceEdit() {
         const populatedVariant = item.variantId && typeof item.variantId === 'object' ? item.variantId : null
         const productIdRaw = populatedVariant?.productId
         const productId = productIdRaw && typeof productIdRaw === 'object' ? productIdRaw._id : productIdRaw || null
+
+        // ── Sheet-metal items carry their own pre-computed segments/subtotal
+        //     from a dedicated calculator elsewhere in the app. This page has
+        //     no editor for segment math, so we preserve them as-is (read-only)
+        //     rather than risk recomputing them incorrectly. ──
+        const isSheetMetal = !!item.isSheetMetal
+        const segments = isSheetMetal && Array.isArray(item.segments)
+          ? item.segments.map(seg => ({
+              length:          Number(seg.length) || 0,
+              qty:             Number(seg.qty) || 0,
+              type:            seg.type || '',
+              typeLabel:       seg.typeLabel || '',
+              extra1:          Number(seg.extra1) || 0,
+              extra2:          Number(seg.extra2) || 0,
+              effectiveLength: Number(seg.effectiveLength ?? seg.length) || 0,
+              subtotal:        Number(seg.subtotal) || 0,
+            }))
+          : []
+
         return {
           isCustom:      item.isCustom || false,
+          isSheetMetal,
+          segments,
           variantId:     populatedVariant?._id || item.variantId || null,
           productId,
           productLabel:  item.productName,
@@ -249,7 +270,7 @@ export default function InvoiceEdit() {
   // ── Add a DB variant to the cart (new line, or +1 if already present) ──
   const addVariantToCart = (variant) => {
     const variantCurrency = variant.currency || 'KHR'
-    const existing = cart.findIndex(c => !c.isCustom && c.variantId === variant._id)
+    const existing = cart.findIndex(c => !c.isCustom && !c.isSheetMetal && c.variantId === variant._id)
     if (existing >= 0) {
       setCart(prev => prev.map((c,i) => i===existing ? {...c, qty:c.qty+1, subtotal:(c.qty+1)*c.unitPrice} : c))
       toast.success(`+1 → ${variant.unitValue}${variant.unit}`); return
@@ -258,6 +279,8 @@ export default function InvoiceEdit() {
     const defaultTier = tiers[0]
     setCart(prev => [...prev, {
       isCustom: false,
+      isSheetMetal: false,
+      segments: [],
       variantId: variant._id, sku: variant.sku, productName: selectedProd?.name ?? '',
       productLabel: selectedProd?.name ?? '',
       productId: selectedProd?._id ?? null, variantOptions: variants,
@@ -277,6 +300,8 @@ export default function InvoiceEdit() {
     if (!price) { toast.error('សូមបញ្ចូលតម្លៃ'); return }
     setCart(prev => [...prev, {
       isCustom: true,
+      isSheetMetal: false,
+      segments: [],
       productId: null, variantOptions: [],
       variantId: null, sku: '', productName: name,
       brand: '', unit: '', unitValue: '',
@@ -288,16 +313,18 @@ export default function InvoiceEdit() {
     setCustomName(''); setCustomPrice(''); setCustomQty(1)
   }
 
-  const setQty         = (idx,raw)  => { const qty=Math.max(1,Number(raw)||1); setCart(prev=>prev.map((c,i)=>i===idx?{...c,qty,subtotal:qty*c.unitPrice}:c)) }
+  // Sheet-metal lines carry a pre-computed subtotal from their segments;
+  // this page has no segment editor, so qty/price edits are ignored for them.
+  const setQty         = (idx,raw)  => { setCart(prev=>prev.map((c,i)=>{ if(i!==idx || c.isSheetMetal) return c; const qty=Math.max(1,Number(raw)||1); return {...c,qty,subtotal:qty*c.unitPrice} })) }
   const applyTier      = (idx,tier) => setCart(prev=>prev.map((c,i)=>i===idx?{...c,unitPrice:tier.price,priceType:tier.type,subtotal:c.qty*tier.price}:c))
-  const setPrice        = (idx,raw)  => { const unitPrice=Math.max(0,Number(raw)||0); setCart(prev=>prev.map((c,i)=>i===idx?{...c,unitPrice,priceType:'custom',subtotal:c.qty*unitPrice}:c)) }
+  const setPrice        = (idx,raw)  => { setCart(prev=>prev.map((c,i)=>{ if(i!==idx || c.isSheetMetal) return c; const unitPrice=Math.max(0,Number(raw)||0); return {...c,unitPrice,priceType:'custom',subtotal:c.qty*unitPrice} })) }
   const setProductName  = (idx, name) => setCart(prev => prev.map((c,i) => i===idx ? { ...c, productName: name } : c))
   const removeItem      = (idx)      => setCart(prev => prev.filter((_,i) => i!==idx))
 
   // ── Switch a cart line to a sibling variant of the SAME product ──
   const switchVariant = (idx, newVariantId) => {
     setCart(prev => prev.map((c, i) => {
-      if (i !== idx || c.isCustom) return c
+      if (i !== idx || c.isCustom || c.isSheetMetal) return c
       const newVariant = (c.variantOptions || []).find(v => v._id === newVariantId)
       if (!newVariant) return c
       const tiers = getTiers(newVariant)
@@ -324,7 +351,7 @@ export default function InvoiceEdit() {
   //     came from the original invoice don't have these until now. ──
   const ensureVariantOptions = async (idx) => {
     const item = cart[idx]
-    if (item.isCustom || !item.productId || item.variantOptions?.length > 0) return item.variantOptions || []
+    if (item.isCustom || item.isSheetMetal || !item.productId || item.variantOptions?.length > 0) return item.variantOptions || []
     try {
       const list = await fetchVariantsForProduct(item.productId)
       setCart(prev => prev.map((c, i) => {
@@ -344,7 +371,7 @@ export default function InvoiceEdit() {
   //     added as a new, separate line (e.g. same item, another size) ──
   const goToProduct = async (idx) => {
     const item = cart[idx]
-    if (item.isCustom || !item.productId) return
+    if (item.isCustom || item.isSheetMetal || !item.productId) return
     const list = item.variantOptions?.length > 0 ? item.variantOptions : await ensureVariantOptions(idx)
     setSearch('')
     setSelectedProd({ _id: item.productId, name: item.productLabel || item.productName })
@@ -461,14 +488,20 @@ export default function InvoiceEdit() {
         khrToUsdRate: khrToUsd,
         items: cart.map(c => {
           const vCurrency = c.variantCurrency || 'KHR'
-          const finalUnitPrice = displayCurrency === 'BOTH'
+          // Sheet-metal items keep their segment-computed unitPrice/subtotal
+          // as-is — we don't have the calculator here to re-derive them in a
+          // different display currency, so they pass through untouched.
+          const finalUnitPrice = c.isSheetMetal
             ? c.unitPrice
-            : toDisplay(c.unitPrice, vCurrency, displayCurrency)
+            : (displayCurrency === 'BOTH' ? c.unitPrice : toDisplay(c.unitPrice, vCurrency, displayCurrency))
+          const finalSubtotal = c.isSheetMetal ? c.subtotal : c.qty * finalUnitPrice
           const base = {
             quantity: c.qty,
             unitPrice: finalUnitPrice,
-            subtotal: c.qty * finalUnitPrice,
+            subtotal: finalSubtotal,
             isCustom: c.isCustom,
+            isSheetMetal: !!c.isSheetMetal,
+            segments: c.isSheetMetal ? c.segments : [],
             ...(displayCurrency === 'BOTH' ? { currency: vCurrency } : {}),
           }
           return c.isCustom
@@ -507,7 +540,7 @@ export default function InvoiceEdit() {
         ? <div className="text-center py-12"><p className="text-5xl mb-3">📦</p><p className="text-sm text-gray-400">គ្មានផលិតផល</p></div>
         : <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {items.map(p => {
-              const cartQtyForProduct = cart.reduce((s, c) => s + (!c.isCustom && c.productId === p._id ? c.qty : 0), 0)
+              const cartQtyForProduct = cart.reduce((s, c) => s + (!c.isCustom && !c.isSheetMetal && c.productId === p._id ? c.qty : 0), 0)
               return (
                 <button key={p._id} onClick={() => selectProduct(p)}
                   className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all active:scale-95 h-full min-h-[76px] ${cartQtyForProduct > 0 ? 'border-indigo-400 bg-indigo-50/60' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
@@ -530,7 +563,7 @@ export default function InvoiceEdit() {
   const VariantCard = (v) => {
     const tiers = getTiers(v)
     const vCurrency = v.currency || 'KHR'
-    const cartIdx = cart.findIndex(c => !c.isCustom && c.variantId === v._id)
+    const cartIdx = cart.findIndex(c => !c.isCustom && !c.isSheetMetal && c.variantId === v._id)
     const inCart = cartIdx >= 0
     const cartQty = inCart ? cart[cartIdx].qty : 0
 
@@ -784,7 +817,7 @@ export default function InvoiceEdit() {
                       className="font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:outline-none focus:border-indigo-400 flex-1 min-w-0 py-0.5"
                     />
                     <div className="flex items-center gap-1 shrink-0">
-                      {!item.isCustom && item.productId && (
+                      {!item.isCustom && !item.isSheetMetal && item.productId && (
                         <button onClick={() => goToProduct(idx)} title="ទៅកាន់ផលិតផលនេះ — បន្ថែមទំហំ/ប្រភេទផ្សេងទៀត"
                           className="flex items-center gap-1 text-[11px] font-semibold text-indigo-500 hover:text-white hover:bg-indigo-500 border border-indigo-200 hover:border-indigo-500 rounded-lg px-2 py-1 transition-colors">
                           ↗ ទំហំផ្សេង
@@ -798,10 +831,13 @@ export default function InvoiceEdit() {
                     {item.isCustom && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-semibold">ផ្ទាល់ខ្លួន</span>
                     )}
+                    {item.isSheetMetal && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">🔩 សន្លឹកដែក</span>
+                    )}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${vCurrency === 'USD' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                       {vCurrency === 'USD' ? '$' : '៛'}
                     </span>
-                    {!item.isCustom && (
+                    {!item.isCustom && !item.isSheetMetal && (
                       <span className="text-xs text-gray-400">
                         {item.unitValue}{item.unit}{item.brand?` · ${item.brand}`:''}
                         {item.sku && <span className="ml-1.5 font-mono text-gray-300">({item.sku})</span>}
@@ -811,7 +847,7 @@ export default function InvoiceEdit() {
 
                   {/* Variant switch combo box — lazily loads options for
                       items that came straight from the original invoice */}
-                  {!item.isCustom && item.productId && (
+                  {!item.isCustom && !item.isSheetMetal && item.productId && (
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
                       <span className="text-xs font-medium text-gray-500 shrink-0">🔀 ប្តូរប្រភេទ:</span>
                       {item.variantOptions?.length > 0 ? (
@@ -838,7 +874,7 @@ export default function InvoiceEdit() {
                     </div>
                   )}
 
-                  {!item.isCustom && item.tiers?.length > 1 && (
+                  {!item.isCustom && !item.isSheetMetal && item.tiers?.length > 1 && (
                     <div>
                       <p className="text-xs text-gray-500 mb-1.5 font-medium">ជ្រើសប្រភេទតម្លៃ:</p>
                       <div className="flex flex-wrap gap-1.5">
@@ -852,29 +888,69 @@ export default function InvoiceEdit() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2.5">
-                    <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
-                      <button onClick={()=>setQty(idx,item.qty-1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">−</button>
-                      <input type="number" min="1" value={item.qty} onChange={e=>setQty(idx,e.target.value)} className="w-12 text-center text-sm font-semibold py-1 border-x border-gray-200 focus:outline-none"/>
-                      <button onClick={()=>setQty(idx,item.qty+1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">+</button>
-                    </div>
-                    <span className="text-gray-400 font-bold">×</span>
-                    <div className="flex-1 relative">
-                      <input type="number" min="0" value={item.unitPrice} onChange={e=>setPrice(idx,e.target.value)}
-                        className="w-full border-2 border-gray-200 rounded-lg text-sm text-right pr-6 pl-2 py-1.5 font-semibold focus:outline-none focus:border-indigo-400 bg-white"/>
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">{vCurrency === 'USD' ? '$' : '៛'}</span>
-                    </div>
-                    <span className="text-gray-400 font-bold">=</span>
-                    <div className="text-right min-w-[90px]">
-                      <p className="text-base font-bold text-green-600">
-                        {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
+                  {/* Sheet-metal items: read-only segment breakdown.
+                      No editor here for length/type/extra1/extra2 math —
+                      values are preserved exactly as they came from the
+                      original invoice/calculator. */}
+                  {item.isSheetMetal ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-slate-500">
+                        🔩 ផ្នែក ({item.segments.length}) — មិនអាចកែពីទំព័រនេះទេ
                       </p>
+                      {item.segments.length === 0 ? (
+                        <p className="text-xs text-gray-400">គ្មានទិន្នន័យផ្នែក</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {item.segments.map((seg, si) => (
+                            <div key={si} className="flex items-center justify-between text-xs bg-white rounded-lg px-2 py-1.5 border border-slate-100">
+                              <span className="text-gray-600">
+                                {seg.typeLabel || seg.type || 'ផ្នែក'} · {seg.length}m × {seg.qty}
+                                {seg.effectiveLength !== seg.length && (
+                                  <span className="text-gray-400"> (= {seg.effectiveLength}m)</span>
+                                )}
+                              </span>
+                              <span className="font-semibold text-slate-700">
+                                {vCurrency === 'USD' ? fmtUSD(seg.subtotal) : fmtKHR(seg.subtotal)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
+                        <span className="text-xs font-semibold text-gray-500">សរុបទំនិញនេះ:</span>
+                        <span className="text-base font-bold text-green-600">
+                          {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
+                        </span>
+                      </div>
                       {displayCurrency !== 'BOTH' && vCurrency !== displayCurrency && (
-                        <p className="text-[10px] text-gray-400">({vCurrency === 'USD' ? fmtUSD(item.subtotal) : fmtKHR(item.subtotal)})</p>
+                        <p className="text-[10px] text-gray-400 text-right">({vCurrency === 'USD' ? fmtUSD(item.subtotal) : fmtKHR(item.subtotal)})</p>
                       )}
                     </div>
-                  </div>
-                  {!item.isCustom && item.qty > item.stock && (
+                  ) : (
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2.5">
+                      <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
+                        <button onClick={()=>setQty(idx,item.qty-1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">−</button>
+                        <input type="number" min="1" value={item.qty} onChange={e=>setQty(idx,e.target.value)} className="w-12 text-center text-sm font-semibold py-1 border-x border-gray-200 focus:outline-none"/>
+                        <button onClick={()=>setQty(idx,item.qty+1)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-lg">+</button>
+                      </div>
+                      <span className="text-gray-400 font-bold">×</span>
+                      <div className="flex-1 relative">
+                        <input type="number" min="0" value={item.unitPrice} onChange={e=>setPrice(idx,e.target.value)}
+                          className="w-full border-2 border-gray-200 rounded-lg text-sm text-right pr-6 pl-2 py-1.5 font-semibold focus:outline-none focus:border-indigo-400 bg-white"/>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">{vCurrency === 'USD' ? '$' : '៛'}</span>
+                      </div>
+                      <span className="text-gray-400 font-bold">=</span>
+                      <div className="text-right min-w-[90px]">
+                        <p className="text-base font-bold text-green-600">
+                          {shownCurrencyLabel === 'USD' ? fmtUSD(shownSubtotal) : fmtKHR(shownSubtotal)}
+                        </p>
+                        {displayCurrency !== 'BOTH' && vCurrency !== displayCurrency && (
+                          <p className="text-[10px] text-gray-400">({vCurrency === 'USD' ? fmtUSD(item.subtotal) : fmtKHR(item.subtotal)})</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {!item.isCustom && !item.isSheetMetal && item.qty > item.stock && (
                     <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-1.5">⚠️ ស្ទុំមានតែ {item.stock}</p>
                   )}
                 </div>
