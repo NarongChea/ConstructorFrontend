@@ -155,29 +155,13 @@ const isZincProduct = (name) => {
   return stripped.includes('សងកសី')
 }
 
-// ── Known category id(s) for the ស័ង្កសី (zinc-sheet) category, as a
-//    fallback/second check alongside isZincProduct() above — in case the
-//    product name on some items doesn't textually match (renamed product,
-//    different product under the same category, etc.) but the item DOES
-//    carry a reference to this category.
-//
-//    NOTE: this only works if invoice items actually have a category
-//    reference saved on them somewhere. Looking at InvoiceCreate.jsx's
-//    submit payload, individual cart lines are NOT currently sent with a
-//    categoryId at all (only variantId/productId, productName, quantity,
-//    unitPrice, subtotal) — so unless the backend separately populates one
-//    onto saved invoice items, every branch below will just fall through
-//    to `false` and nothing changes. Confirm what an actual saved item
-//    looks like before relying on this. ──
-const ZINC_CATEGORY_IDS = ['6a966eddb52385d7331211cf']
-
-const isZincCategoryItem = (item) => {
-  if (!item) return false
-  const raw = item.categoryId ?? item.category ?? item.category?._id ?? item.categoryId?._id
-  if (!raw) return false
-  const idStr = typeof raw === 'string' ? raw : (raw._id ? String(raw._id) : String(raw))
-  return ZINC_CATEGORY_IDS.includes(idStr)
-}
+// ── NOTE: category-based matching was tried and removed. The ProductVariant
+//    schema (see productVariant.model.js) has no categoryId field at all —
+//    only productId, unitTypeId, brand, unit, unitValue, currency, price,
+//    pricingTiers, stock, sku. There is nothing on a variant (and therefore
+//    nothing carried onto a cart line or a saved invoice item) to match a
+//    category id against, so that check could never have worked. Matching
+//    is done purely off productName / brand text below instead. ──
 
 // ── Split an array into chunks of `size`. Always returns at least one chunk
 //    (even if `arr` is empty) so a page always renders. ──
@@ -227,11 +211,14 @@ const flattenPrintRows = (items) => {
       // ── Fallback for zinc-sheet lines with NO segments array — e.g. the
       //    product was added through the normal "add to cart" flow (or is
       //    an older invoice) instead of the ស័ង្កសី length-entry builder,
-      //    so isSheetMetal/segments were never set. Still print it as a
-      //    header row + one segment row, built from this single line's own
-      //    length (unitValue) and quantity, so it's visually consistent
-      //    with proper multi-length sheet-metal lines instead of printing
-      //    as a flat single row. ──
+      //    so isSheetMetal/segments were never set. The zinc word can show
+      //    up in either productName (parent product) OR brand (the variant
+      //    description, e.g. "ស័ង្កសី 3 សុំ ខៀវ") depending on how the
+      //    product/variant was named, so both are checked. Still print it
+      //    as a header row + one segment row, built from this single
+      //    line's own length (unitValue) and quantity, so it's visually
+      //    consistent with proper multi-length sheet-metal lines instead
+      //    of printing as a flat single row. ──
       n += 1
       rows.push({ ...item, rowType: 'sheet-header', itemNo: n })
       const segLength = Number(item.unitValue) || 0
