@@ -173,3 +173,8 @@ export const settingAPI = {
 export const dashboardAPI = {
   stats: () => api.get('/dashboard/stats'),
 }
+export const cartDraftAPI = {
+  get:   (key = 'current') => axiosInstance.get(`/cart-draft/${key}`),
+  save:  (key = 'current', data) => axiosInstance.put(`/cart-draft/${key}`, data),
+  clear: (key = 'current') => axiosInstance.delete(`/cart-draft/${key}`),
+}
