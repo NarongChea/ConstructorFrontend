@@ -164,7 +164,21 @@ export default function InvoiceCreate() {
       .finally(() => setLoadingRate(false))
   }, [])
 useEffect(() => {
-  console.log('🛒 Cart updated:', cart)
+  console.log(
+    `🛒 Cart updated (${cart.length} item${cart.length === 1 ? '' : 's'}):`,
+    cart.map(item => ({
+      product: item.productName,
+      isSheetMetal: item.isSheetMetal || false,
+      isCustom: item.isCustom || false,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+      currency: item.variantCurrency || 'KHR',
+      segments: item.isSheetMetal
+        ? item.segments.map(s => `${s.length}×${s.qty} ${s.typeLabel}`)
+        : undefined,
+    }))
+  )
 }, [cart])
   useEffect(() => {
     if (!dSearch) { setSearchResults([]); return }
