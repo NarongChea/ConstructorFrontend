@@ -163,7 +163,9 @@ export default function InvoiceCreate() {
       .catch(() => toast.error('មិនអាចទាញអត្រាប្ដូររូបិយប័ណ្ណបាន — ប្រើតម្លៃលំនាំដើម'))
       .finally(() => setLoadingRate(false))
   }, [])
-
+useEffect(() => {
+  console.log('🛒 Cart updated:', cart)
+}, [cart])
   useEffect(() => {
     if (!dSearch) { setSearchResults([]); return }
     setSelectedProd(null); setVariants([])

@@ -223,7 +223,7 @@ const flattenPrintRows = (items) => {
           subtotal: (seg.subtotal !== undefined && seg.subtotal !== null) ? seg.subtotal : segQty * item.unitPrice,
         })
       })
-    } else if (isZincProduct(item?.productName) || isZincProduct(item?.brand) || isZincCategoryItem(item)) {
+    } else if (isZincProduct(item?.productName) || isZincCategoryItem(item)) {
       // ── Fallback for zinc-sheet lines with NO segments array — e.g. the
       //    product was added through the normal "add to cart" flow (or is
       //    an older invoice) instead of the ស័ង្កសី length-entry builder,
@@ -400,21 +400,20 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
             // bottom border marks it as the parent of the segment rows
             // that follow it.
             if (row.rowType === 'sheet-header') {
-  return (
-    <tr key={`sheet-header-${i}`} style={{ background: rowBg }}>
-      <td style={{ ...TD, textAlign: 'center', fontWeight: '700', borderBottom: `2px solid ${B}` }}>
-        {row.itemNo ?? ''}
-      </td>
-      <td style={{ ...TD, fontWeight: '700', borderBottom: `2px solid ${B}` }}>
-        {row.productName}
-        {row.brand ? <span style={{ fontWeight: '600' }}>&nbsp;{row.brand}</span> : null}
-      </td>
-      <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
-      <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
-      <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
-    </tr>
-  )
-}
+              return (
+                <tr key={`sheet-header-${i}`} style={{ background: rowBg }}>
+                  <td style={{ ...TD, textAlign: 'center', fontWeight: '700', borderBottom: `2px solid ${B}` }}>
+                    {row.itemNo ?? ''}
+                  </td>
+                  <td style={{ ...TD, fontWeight: '700', borderBottom: `2px solid ${B}` }}>
+                    {row.productName}
+                  </td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                  <td style={{ ...TD, borderBottom: `2px solid ${B}` }}></td>
+                </tr>
+              )
+            }
 
             // ── SHEET-METAL SEGMENT ROW ──────────────────────────────────
             // Blank item number, indented label so it visually reads as a
