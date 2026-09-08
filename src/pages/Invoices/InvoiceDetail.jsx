@@ -22,10 +22,10 @@ import { sendOrderToTelegram } from '../../utils/telegram.js'
 //    open "More settings" and uncheck "Headers and footers" before
 //    printing/saving as PDF. ──
 const PAGE_W   = '210mm'
-const PAGE_H   = '297mm'
+const PAGE_H   = '296mm'
 const PAGE_MARGIN = '0mm'
 const USABLE_W = '210mm'
-const USABLE_H = '297mm'
+const USABLE_H = '296mm'
 
 const PRINT_STYLE = `
 @page {
