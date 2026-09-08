@@ -372,7 +372,7 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
             <th style={{ ...TH, width: '15mm' }}>{'លរ'}</th>
             <th style={{ ...TH }}>{'ទំនិញ'}</th>
             <th style={{ ...TH, width: '30mm' }}>{'ចំនួន'}</th>
-            <th style={{ ...TH, width: '30mm' }}>{'តម្លៃរាយ'}</th>
+            <th style={{ ...TH, width: '45mm' }}>{'តម្លៃរាយ'}</th>
             <th style={{ ...TH, width: '50mm' }}>{'តម្លៃសរុប'}</th>
           </tr>
         </thead>
