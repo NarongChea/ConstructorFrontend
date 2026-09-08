@@ -21,11 +21,11 @@ import { sendOrderToTelegram } from '../../utils/telegram.js'
 //    that is NOT controlled by this CSS. To remove it, in the print dialog
 //    open "More settings" and uncheck "Headers and footers" before
 //    printing/saving as PDF. ──
-const PAGE_W   = '210mm'
-const PAGE_H   = '296mm'
+const PAGE_W   = '215mm'
+const PAGE_H   = '293mm'
 const PAGE_MARGIN = '0mm'
-const USABLE_W = '210mm'
-const USABLE_H = '296mm'
+const USABLE_W = '215mm'
+const USABLE_H = '293mm'
 
 const PRINT_STYLE = `
 @page {
