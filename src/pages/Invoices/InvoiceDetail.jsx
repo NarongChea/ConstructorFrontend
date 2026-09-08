@@ -8,13 +8,13 @@ import Modal from '../../components/UI/Modal.jsx'
 import ConfirmDialog from '../../components/UI/ConfirmDialog.jsx'
 import { sendOrderToTelegram } from '../../utils/telegram.js'
 
-// ── PAPER: A4 portrait, 210mm x 297mm, @page margin 0mm on every side.
-//    That means the browser's actual printable area equals the full sheet:
-//      usable width  = 210mm
-//      usable height = 297mm
-//    Everything below is sized against those 210mm / 297mm numbers, so the
-//    content sits fully inside the printable area with no reliance on
-//    "Fit to page" / scaling.
+// ── PAPER: A5 portrait, 148mm x 210mm, @page margin 2mm on every side.
+//    That means the browser's actual printable area is:
+//      usable width  = 210mm - 2mm - 2mm = 206mm
+//      usable height = 297mm - 2mm - 2mm = 293mm
+//    Everything below is sized against those 206mm / 293mm numbers — NOT
+//    against the full 210mm/297mm sheet — so the content sits fully inside
+//    the printable area with no reliance on "Fit to page" / scaling.
 //
 //    NOTE: the browser (Chrome/Edge/etc.) still adds its own header/footer
 //    line (URL + date + page number) at the top/bottom of the printed page —
@@ -52,8 +52,9 @@ const PRINT_STYLE = `
   #inv-print, #inv-print * { visibility: visible !important; }
 
   /* #inv-print is positioned at the top-left of the page's printable area
-     and is sized to exactly fill that printable area — never wider than
-     USABLE_W, so there is no horizontal overflow and no need for the
+     (which already starts 2mm in from the physical edge, per @page margin
+     above) and is sized to exactly fill that printable area — never wider
+     than USABLE_W, so there is no horizontal overflow and no need for the
      browser to scale/shrink anything. */
   #inv-print {
     position: absolute !important;
@@ -87,26 +88,26 @@ const B  = '#1a2c8a'
 // every place that referenced LB now renders plain white instead of light blue.
 const LB = '#ffffff'
 
-// ── Max rows printed on a single physical page (A4, 297mm tall).
-//    Row height budget per page:
-//      header block (logo + title + phone)              ≈ 42mm
-//      customer row                                      ≈  9mm
-//      items table header                                ≈ 10mm
-//      20 item rows × ~7mm rendered                       ≈140mm
-//      totals + signatures footer (last pg)               ≈ 45mm
+// ── Max rows printed on a single physical page. Row height was bumped up
+//    (TD height 9mm → 11mm, font 11px → 12px) and outer padding removed for
+//    readability/more usable width, per copy/page:
+//      header block (logo + title + phone, bigger now) ≈ 42mm
+//      customer row                                     ≈  9mm
+//      items table header                               ≈ 10mm
+//      15 item rows × ~7mm rendered                     ≈105mm
+//      totals + signatures footer (last pg)              ≈ 45mm
 //      ------------------------------------------------
-//      total                                              ≈246mm  (< 297mm usable)
-//    That leaves comfortable headroom on A4. If your printer/PDF preview
-//    still shows overflow (e.g. a font substitution renders Khmer taller),
-//    lower ROWS_PER_PAGE first — try 16 or 18 — before touching anything
-//    else.
+//      total                                             ≈211mm  (< 293mm usable)
+//    That leaves comfortable headroom. If your printer/PDF preview still shows
+//    overflow (e.g. a font substitution renders Khmer taller), lower
+//    ROWS_PER_PAGE first — try 12 or 13 — before touching anything else.
 //
 //    NOTE: rows here means PRINT ROWS, not invoice items — a ស័ង្កសី item
 //    with 3 length entries takes up 4 rows (1 header + 3 segment rows), see
 //    flattenPrintRows() below. Row numbering ("No" column) only increments
 //    for real product entries via `itemNo`; totals/footer only render on the
 //    LAST page of each copy so the total isn't printed multiple times. ──
-const ROWS_PER_PAGE = 20
+const ROWS_PER_PAGE = 14
 
 const CO = {
   badge: '168', name: 'សម្បត្តិ មហាសាល',
@@ -115,30 +116,20 @@ const CO = {
   tel1: '016 439 073', tel2: '012 439 073', tel3: '071 8 522 555',
 }
 
-// ── Column widths: kept close in size to each other on purpose so the
-//    header row reads as one balanced strip instead of some columns
-//    towering over their neighbors. "No" is the odd one out (it only ever
-//    holds a 1-2 digit number) so it stays narrow; the other three numeric
-//    columns (Qty / Unit price / Total) share a similar footprint. ──
-const COL_NO    = '14mm'
-const COL_QTY   = '28mm'
-const COL_PRICE = '34mm'
-const COL_TOTAL = '38mm'
-
 const TH = {
-  padding: '3mm 2mm',
+  padding: '4mm 2mm',
   border: `1px solid ${B}`,
   fontWeight: '700',
   textAlign: 'center',
   whiteSpace: 'pre-line',
   lineHeight: 1.2,
   color: '#fff',
-  fontSize: '16px',
+  fontSize: '24px',
 }
 const TD = {
   padding: '2mm 2mm',
   border: `1px solid ${B}`,
-  fontSize: '14px',
+  fontSize: '22px',
 }
 const fmtKHR = (n) => Math.round(n || 0).toLocaleString('km-KH') + ' ៛'
 const fmtUSD = (n) => '$' + (n || 0).toFixed(2)
@@ -378,11 +369,11 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
         <thead>
           <tr style={{ background: B }}>
-            <th style={{ ...TH, width: COL_NO }}>{'លរ'}</th>
+            <th style={{ ...TH, width: '15mm' }}>{'លរ'}</th>
             <th style={{ ...TH }}>{'ទំនិញ'}</th>
-            <th style={{ ...TH, width: COL_QTY }}>{'ចំនួន'}</th>
-            <th style={{ ...TH, width: COL_PRICE }}>{'តម្លៃរាយ'}</th>
-            <th style={{ ...TH, width: COL_TOTAL }}>{'តម្លៃសរុប'}</th>
+            <th style={{ ...TH, width: '30mm' }}>{'ចំនួន'}</th>
+            <th style={{ ...TH, width: '30mm' }}>{'តម្លៃរាយ'}</th>
+            <th style={{ ...TH, width: '50mm' }}>{'តម្លៃសរុប'}</th>
           </tr>
         </thead>
         <tbody>
@@ -495,32 +486,28 @@ function InvoiceCopy({ invoice, rows, copyLabel, showTotals, pageInfo }) {
             {/* Right: totals */}
             <td style={{ border: `1px solid ${B}`, padding: 0, verticalAlign: 'top' }}>
               {isBoth ? (
-                // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $).
-                //    Font sizes here are deliberately matched to the
-                //    single-currency table below (13px body / 20px totals)
-                //    instead of the old 7-8px — mixing 7px with 20-24px
-                //    elsewhere on the page read as broken/inconsistent. ──
+                // ── BOTH-CURRENCY: same row structure, 3 columns (label | ៛ | $) ──
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <tbody style={{display : 'flex',flexDirection : 'column'}}>
                     {/* Subtotal + discount — only if discount exists */}
                     {(invoice.discountAmountKHR > 0 || invoice.discountAmountUSD > 0) && (<>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '1.5mm 2mm', fontWeight: '600', fontSize: '13px', color: '#555', borderRight: `1px solid ${B}` }}>សរុបរង</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '13px', color: '#555', borderRight: `1px dashed ${B}` }}>{invoice.subtotalKHR > 0 ? fmtKHR(invoice.subtotalKHR) : '—'}</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '13px', color: '#555' }}>{invoice.subtotalUSD > 0 ? fmtUSD(invoice.subtotalUSD) : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', fontWeight: '600', fontSize: '7px', color: '#555', borderRight: `1px solid ${B}` }}>សរុបរង</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '7px', color: '#555', borderRight: `1px dashed ${B}` }}>{invoice.subtotalKHR > 0 ? fmtKHR(invoice.subtotalKHR) : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', fontSize: '7px', color: '#555' }}>{invoice.subtotalUSD > 0 ? fmtUSD(invoice.subtotalUSD) : '—'}</td>
                       </tr>
                       <tr style={{ borderBottom: `1px solid ${B}` }}>
-                        <td style={{ padding: '1.5mm 2mm', color: 'red', fontSize: '13px', borderRight: `1px solid ${B}` }}>បញ្ចុះ</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '13px', borderRight: `1px dashed ${B}` }}>{invoice.discountAmountKHR > 0 ? `−${fmtKHR(invoice.discountAmountKHR)}` : '—'}</td>
-                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '13px' }}>{invoice.discountAmountUSD > 0 ? `−${fmtUSD(invoice.discountAmountUSD)}` : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', color: 'red', fontSize: '7px', borderRight: `1px solid ${B}` }}>បញ្ចុះ</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '7px', borderRight: `1px dashed ${B}` }}>{invoice.discountAmountKHR > 0 ? `−${fmtKHR(invoice.discountAmountKHR)}` : '—'}</td>
+                        <td style={{ padding: '1.5mm 2mm', textAlign: 'right', color: 'red', fontSize: '7px' }}>{invoice.discountAmountUSD > 0 ? `−${fmtUSD(invoice.discountAmountUSD)}` : '—'}</td>
                       </tr>
                     </>)}
 
                     {/* Currency header sub-row */}
                     <tr style={{ background: LB, borderBottom: `1px solid ${B}` }}>
                       <td style={{ padding: '1mm 2mm', borderRight: `1px solid ${B}` }}></td>
-                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px', borderRight: `1px dashed ${B}` }}>៛ រៀល</td>
-                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '13px' }}>$ ដុល្លារ</td>
+                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '7px', borderRight: `1px dashed ${B}` }}>៛ រៀល</td>
+                      <td style={{ padding: '1mm 2mm', textAlign: 'center', fontWeight: '800', color: B, fontSize: '7px' }}>$ ដុល្លារ</td>
                     </tr>
 
                     {/* Total row */}
@@ -622,22 +609,20 @@ export default function InvoiceDetail() {
   const [paySaving,      setPaySaving]      = useState(false)
   const [notPaidConfirm, setNotPaidConfirm] = useState(false)
 
-  // ── PRINT / SAVE AS PDF ──
-  // Browsers don't expose a way to directly write a PDF file to disk from
-  // JS without a heavy client-side PDF library, so both "Print" and "Save
-  // as PDF" open the same native print dialog — the only difference is the
-  // destination the person picks there (a physical printer vs. "Save as
-  // PDF" / "Microsoft Print to PDF"). We still expose two buttons because
-  // people look for a dedicated "Save as PDF" action and don't always think
-  // to check the print dialog's destination dropdown.
+  // ── PRINT FIX FOR MOBILE ──
+  // Previously this used react-to-print with a custom async `print:` callback that
+  // built a hidden iframe and called `iframe.contentWindow.print()` after some async
+  // work (waiting for the iframe to load, etc). Desktop browsers tolerate that, but
+  // iOS Safari and most mobile Chrome builds only allow window.print() to open the
+  // system print/PDF sheet when it's called *synchronously*, inside the same tap
+  // event that triggered it. Once you `await` anything first, the "user gesture" is
+  // gone and print() silently no-ops — which is exactly the "blank" behavior you saw
+  // on phones (desktop still worked because it's more lenient about this).
   //
-  // iOS Safari / mobile Chrome only allow window.print() to open when it's
-  // called *synchronously* inside the same tap event — no awaiting anything
-  // first — so both handlers stay simple synchronous calls.
+  // Fix: don't use an iframe at all. The global PRINT_STYLE below already hides
+  // everything except #inv-print during printing, so we can just call the browser's
+  // own window.print() directly and synchronously on tap. No iframe, no async gap.
   const handlePrint = () => {
-    window.print()
-  }
-  const handleSaveAsPdf = () => {
     window.print()
   }
 
@@ -809,11 +794,7 @@ export default function InvoiceDetail() {
         {!isCancelled && (
           <button onClick={() => setCancelConfirm(true)} className="btn-danger text-sm">🚫 បោះបង់</button>
         )}
-        <button onClick={handlePrint} className="btn-primary text-sm">🖨️ បោះពុម្ព</button>
-        <button onClick={handleSaveAsPdf}
-          className="btn-secondary text-sm bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
-          💾 រក្សាទុកជា PDF
-        </button>
+        <button onClick={handlePrint} className="btn-primary text-sm">🖨️ បោះពុម្ព / PDF</button>
       </div>
 
       {/* Reminder: the URL/date/page-number line at the bottom of a printed page
@@ -821,8 +802,7 @@ export default function InvoiceDetail() {
           dialog under "More settings" → uncheck "Headers and footers". */}
       <p className="no-print text-xs text-gray-400">
         ℹ️ បើមានអក្សរ URL/កាលបរិច្ឆេទនៅផ្នែកខាងក្រោមក្រដាស នោះជា header/footer លំនាំដើមរបស់ browser —
-        សូមទៅកាន់ dialog បោះពុម្ព → "More settings" → ដកធីក "Headers and footers"។ ជ្រើសរើស Paper size: A4, Scale: 100% (Actual Size)។
-        ចង់រក្សាទុកជា PDF? ចុច "💾 រក្សាទុកជា PDF" រួចជ្រើសរើស Destination: "Save as PDF"។
+        សូមទៅកាន់ dialog បោះពុម្ព → "More settings" → ដកធីក "Headers and footers"។ ជ្រើសរើស Paper size: A5, Scale: 100% (Actual Size)។
       </p>
 
       {/* Printable invoice.
