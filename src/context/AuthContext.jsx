@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import api from '../api/Axios.js'
+import api, { clearApiCache } from '../api/Axios.js'
 import toast from 'react-hot-toast'
 
 const AuthContext = createContext(null)
@@ -36,6 +36,9 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (email, password) => {
+    // Clear anything cached from a previous user before logging in
+    clearApiCache()
+
     // After the Axios response interceptor unwraps the envelope,
     // res.data = { _id, name, email, role, isActive, ..., token }
     const res = await api.post('/auth/login', { email, password })
@@ -49,6 +52,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
+    clearApiCache()
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     delete api.defaults.headers.common['Authorization']
